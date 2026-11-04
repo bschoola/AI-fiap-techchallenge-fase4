@@ -1,0 +1,7 @@
+# Módulo de vídeo (opcional, instalar depois): tudo roda em CPU.
+# Para um PyTorch leve só de CPU, instale antes:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+ultralytics>=8.3        # YOLOv8 (detecção e pose); use os pesos nano: yolov8n.pt / yolov8n-pose.pt
+opencv-python-headless>=4.9
+numpy>=1.26
+# Alternativa leve para pose: mediapipe>=0.10

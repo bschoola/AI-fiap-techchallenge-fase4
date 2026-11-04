@@ -1,0 +1,24 @@
+# Segredos
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Dados e artefatos (datasets grandes não vão para o git)
+data/*.db
+data/raw/
+data/external/
+outputs/
+*.pt
+*.onnx
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
