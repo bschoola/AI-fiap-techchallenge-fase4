@@ -1,5 +1,5 @@
-from medmonitor.audio.critical_terms import find_critical_terms
-from medmonitor.models import Severity
+from vitaltrace.audio.critical_terms import find_critical_terms
+from vitaltrace.models import Severity
 
 
 def terms(text):

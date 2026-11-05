@@ -10,11 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from medmonitor.config import Settings  # noqa: E402
+from vitaltrace.config import Settings  # noqa: E402
 
 
 def check_language(settings: Settings) -> None:
-    from medmonitor.audio.language_service import AzureLanguageAnalyzer
+    from vitaltrace.audio.language_service import AzureLanguageAnalyzer
 
     analyzer = AzureLanguageAnalyzer(
         settings.azure_language_endpoint,

@@ -1,7 +1,7 @@
-from medmonitor.alerts.engine import build_audio_alerts
-from medmonitor.audio.critical_terms import find_critical_terms
-from medmonitor.audio.models import SentimentResult, SpeechMetrics, TextAnalysis
-from medmonitor.models import Severity
+from vitaltrace.alerts.engine import build_audio_alerts
+from vitaltrace.audio.critical_terms import find_critical_terms
+from vitaltrace.audio.models import SentimentResult, SpeechMetrics, TextAnalysis
+from vitaltrace.models import Severity
 
 
 def build(settings, text="", sentiment=None, metrics=None):

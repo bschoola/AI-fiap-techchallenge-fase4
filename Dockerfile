@@ -4,18 +4,26 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/src
 
-# ffmpeg: normaliza áudios; libasound2/libssl3: exigidos pelo SDK do Azure Speech
+# ffmpeg: normaliza áudios; libasound2/libssl3: exigidos pelo SDK do Azure Speech;
+# libgl1/libglib2.0-0: dependências de runtime do OpenCV
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libasound2 libssl3 ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg libasound2 libssl3 ca-certificates libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements.txt .
+COPY requirements.txt requirements-video.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# YOLOv8-pose em CPU (PyTorch só-CPU, ~250 MB). Use --build-arg WITH_YOLO=false para pular:
+# o vídeo cai no plano B (OpenCV) e a imagem fica bem menor.
+ARG WITH_YOLO=true
+RUN if [ "$WITH_YOLO" = "true" ]; then \
+      pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+      && pip install --no-cache-dir -r requirements-video.txt; \
+    fi
+
 COPY src ./src
-COPY dashboard ./dashboard
 COPY scripts ./scripts
 
-EXPOSE 8000 8501
-CMD ["uvicorn", "medmonitor.api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000
+CMD ["uvicorn", "vitaltrace.web.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

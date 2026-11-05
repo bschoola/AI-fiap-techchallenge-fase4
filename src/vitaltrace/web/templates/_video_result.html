@@ -1,0 +1,37 @@
+<div class="stack" style="gap:20px">
+  <section class="card stack" style="gap:14px">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="font-size:18px;font-weight:800">Resultado</h2>
+      <span class="badge {{ risk.level }}">Risco do paciente: {{ risk.level | risk }} · {{ risk.score | num }}/100</span>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><span>Duração analisada</span><b>{{ analysis.metrics.duration_s | num }} s</b></div>
+      <div class="kpi"><span>Pessoa visível</span><b>{{ (analysis.metrics.person_detected_ratio * 100) | num }}%</b></div>
+      <div class="kpi"><span>Índice de mobilidade</span><b>{{ analysis.metrics.mobility_index | num(2) }}</b></div>
+      <div class="kpi"><span>Imobilidade</span><b>{{ analysis.metrics.immobility_s | num }} s</b></div>
+      {% if analysis.metrics.median_knee_diff_deg is not none %}<div class="kpi"><span>Δ joelhos (mediana)</span><b>{{ analysis.metrics.median_knee_diff_deg | num }}°</b></div>{% endif %}
+    </div>
+    {% if previous %}<p class="small muted" style="margin:0">Sessões anteriores (da mais recente para a mais antiga): {% for p in previous %}{{ p | num(2) }}{{ ' · ' if not loop.last }}{% endfor %}.</p>{% endif %}
+  </section>
+
+  {% if analysis.keyframes %}
+  <section class="card stack" style="gap:12px">
+    <h2 style="font-size:18px;font-weight:800">Quadros-chave</h2>
+    <div class="keyframes">{% for img in analysis.keyframes %}<img src="{{ img }}" alt="Quadro {{ loop.index }} do vídeo com a detecção da pessoa destacada">{% endfor %}</div>
+  </section>
+  {% endif %}
+
+  <section class="card stack" style="gap:4px">
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:6px">Eventos detectados</h2>
+    {% for e in analysis.events %}
+    <div class="event"><span class="badge {{ e.severity.value }}">{{ e.severity.value | sev }}</span>
+      <div style="flex:1 1 280px"><b>{{ type_label(e.type) }}</b> <span class="small muted">{{ e.t_start | round(0) | int }}–{{ e.t_end | round(0) | int }} s</span><br><span class="muted" style="font-size:14px">{{ e.description }}</span></div></div>
+    {% else %}<p class="muted" style="margin:0">Nenhum evento: movimento dentro do esperado.</p>{% endfor %}
+  </section>
+
+  <section class="card stack" style="gap:10px">
+    <h2 style="font-size:18px;font-weight:800">Relatório automático</h2>
+    <pre class="report">{{ analysis.report }}</pre>
+    {% if new_alerts %}<p class="small muted" style="margin:0">{{ new_alerts | length }} alerta(s) enviado(s) ao painel da equipe.</p>{% endif %}
+  </section>
+</div>

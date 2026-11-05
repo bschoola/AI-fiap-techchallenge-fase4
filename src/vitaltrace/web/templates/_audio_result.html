@@ -1,0 +1,56 @@
+<div class="stack" style="gap:20px">
+  {% if mock and from_file %}<div class="notice info">Transcrição simulada: o conteúdo do áudio foi ignorado (modo <code>MOCK_AZURE</code>).</div>{% endif %}
+  <section class="card stack" style="gap:12px">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="font-size:18px;font-weight:800">Transcrição</h2>
+      <span class="badge {{ risk.level }}">Risco do paciente: {{ risk.level | risk }} · {{ risk.score | num }}/100</span>
+    </div>
+    <p class="transcript" style="margin:0">{{ transcript }}</p>
+  </section>
+
+  <div class="grid2">
+    <section class="card stack" style="gap:14px">
+      <h2 style="font-size:18px;font-weight:800">Voz e ritmo de fala</h2>
+      <div class="kpis">
+        <div class="kpi"><span>Palavras</span><b>{{ analysis.metrics.words }}</b></div>
+        <div class="kpi"><span>Duração</span><b>{{ analysis.metrics.duration_s | num(1) }}{{ ' s' if analysis.metrics.duration_s is not none }}</b></div>
+        <div class="kpi"><span>Palavras/min</span><b>{{ analysis.metrics.words_per_minute | num }}</b></div>
+        <div class="kpi"><span>Tempo em pausa</span><b>{{ ((analysis.metrics.pause_ratio * 100) | num) ~ '%' if analysis.metrics.pause_ratio is not none else '—' }}</b></div>
+      </div>
+      {% if not analysis.metrics.reliable %}<p class="small muted" style="margin:0">Trecho curto ou sem marcação de tempo: o ritmo de fala não é usado para gerar alertas.</p>{% endif %}
+    </section>
+    <section class="card stack" style="gap:14px">
+      <h2 style="font-size:18px;font-weight:800">Sentimento</h2>
+      {% set s = analysis.text_analysis.sentiment %}
+      {% for label, value, cls in [('Negativo', s.negative, 'neg'), ('Neutro', s.neutral, ''), ('Positivo', s.positive, '')] %}
+      <div><div class="row" style="justify-content:space-between;font-size:14px"><span>{{ label }}</span><b>{{ (value * 100) | num }}%</b></div>
+        <div class="bar {{ cls }}" role="img" aria-label="{{ label }} {{ (value * 100) | num }}%"><i style="width:{{ (value * 100) | round(0) }}%"></i></div></div>
+      {% endfor %}
+      {% if analysis.text_analysis.key_phrases %}
+      <div class="row" style="gap:6px">{% for k in analysis.text_analysis.key_phrases[:10] %}<span class="chip">{{ k }}</span>{% endfor %}</div>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="card stack" style="gap:8px">
+    <h2 style="font-size:18px;font-weight:800">Termos críticos</h2>
+    {% if analysis.critical_terms %}
+    <table class="t"><thead><tr><th>Termo</th><th>Categoria</th><th>Severidade</th><th>Contexto</th></tr></thead><tbody>
+      {% for m in analysis.critical_terms %}
+      <tr><td><b>{{ m.term }}</b>{% if m.negated %} <span class="small muted">(negado)</span>{% endif %}</td><td>{{ m.category }}</td>
+        <td><span class="badge {{ 'low' if m.negated else m.severity.value }}">{{ ('NEGADO' if m.negated else m.severity.value | sev) }}</span></td>
+        <td class="muted">…{{ m.context }}…</td></tr>
+      {% endfor %}
+    </tbody></table>
+    {% else %}<p class="muted" style="margin:0">Nenhum termo crítico encontrado.</p>{% endif %}
+  </section>
+
+  <section class="card stack" style="gap:4px">
+    <h2 style="font-size:18px;font-weight:800">Alertas gerados</h2>
+    {% set new_ids = new_alerts | map(attribute='id') | list %}
+    {% for a in analysis.alerts %}
+    <div class="alert-item"><div class="row" style="gap:8px"><span class="badge {{ a.severity.value }}">{{ a.severity.value | sev }}</span><span class="small muted">{{ 'novo' if a.id in new_ids else 'já estava em aberto' }}</span></div><span>{{ a.title }}</span></div>
+    {% else %}<p class="muted" style="margin:0">Nenhum alerta: o conteúdo não passou dos limiares.</p>{% endfor %}
+    <p class="small muted" style="margin:8px 0 0">Os alertas aparecem para toda a equipe no painel da tela inicial.</p>
+  </section>
+</div>

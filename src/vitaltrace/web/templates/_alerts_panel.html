@@ -1,0 +1,29 @@
+<aside id="alerts-panel" class="card stack" style="gap:4px"
+       hx-get="/alerts/panel{% if alert_scope %}?patient_id={{ alert_scope }}{% endif %}" hx-trigger="every 3s" hx-swap="outerHTML">
+  <div class="row" style="justify-content:space-between">
+    <h2 style="font-size:18px;font-weight:800">Alertas em aberto</h2>
+    <span class="count" aria-label="{{ alerts_total }} alertas em aberto">{{ alerts_total }}</span>
+  </div>
+  <span class="row small muted" style="gap:8px;padding-bottom:8px"><span class="dot" aria-hidden="true"></span>Atualização automática a cada 3 s</span>
+  {% for a in alerts %}
+  <div class="alert-item">
+    <div class="row" style="gap:8px">
+      <span class="badge {{ a.severity }}">{{ a.severity | sev }}</span>
+      <span class="small muted">{{ a.source | source }} · {{ a.created_at | ago }}</span>
+    </div>
+    {% if not alert_scope %}<b style="font-size:15px">{{ a.patient.name }}</b>{% endif %}
+    <span style="font-size:14px;line-height:1.45">{{ a.title }}</span>
+    <div class="acts">
+      {% if not alert_scope %}<a class="btn primary" href="/patients/{{ a.patient_id }}">Abrir paciente</a>{% endif %}
+      <button class="btn" type="button"
+              hx-post="/alerts/{{ a.id }}/ack{% if alert_scope %}?patient_id={{ alert_scope }}{% endif %}"
+              hx-target="#alerts-panel" hx-swap="outerHTML">Estou ciente</button>
+    </div>
+  </div>
+  {% else %}
+  <div style="padding:20px 0 8px;border-top:1px solid var(--line-soft)" class="muted">Nenhum alerta em aberto.</div>
+  {% endfor %}
+  {% if alerts_total > alerts|length %}
+  <div class="small muted" style="padding-top:12px;border-top:1px solid var(--line-soft)">E mais {{ alerts_total - alerts|length }} alerta(s) de menor severidade. Abra o paciente para ver todos.</div>
+  {% endif %}
+</aside>

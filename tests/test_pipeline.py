@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from medmonitor.audio.models import SpeechSegment, TextAnalysis, Transcription
-from medmonitor.audio.pipeline import AudioPipeline
-from medmonitor.models import Severity
+from vitaltrace.audio.models import SpeechSegment, TextAnalysis, Transcription
+from vitaltrace.audio.pipeline import AudioPipeline
+from vitaltrace.models import Severity
 
 
 class FakeTranscriber:

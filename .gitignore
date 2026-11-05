@@ -22,3 +22,4 @@ outputs/
 .idea/
 .DS_Store
 Thumbs.db
+_to_delete/

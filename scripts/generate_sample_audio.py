@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import azure.cognitiveservices.speech as speechsdk  # noqa: E402
 
-from medmonitor.config import Settings  # noqa: E402
+from vitaltrace.config import Settings  # noqa: E402
 
 VOICE = "pt-BR-FranciscaNeural"
 OUT_DIR = ROOT / "data" / "samples"

@@ -1,5 +1,5 @@
-from medmonitor.audio.metrics import compute_speech_metrics
-from medmonitor.audio.models import SpeechSegment, Transcription
+from vitaltrace.audio.metrics import compute_speech_metrics
+from vitaltrace.audio.models import SpeechSegment, Transcription
 
 
 def make(segments, text):

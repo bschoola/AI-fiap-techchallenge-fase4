@@ -1,0 +1,32 @@
+<div class="stack" style="gap:14px" id="patient-list">
+  <div class="row" style="justify-content:space-between">
+    <h2 style="font-size:18px;font-weight:800">{{ list_title }}</h2>
+    {% if not query %}
+      {% if show_all %}
+        <a class="btn ghost" href="/">Mostrar só os recentes</a>
+      {% else %}
+        <a class="btn ghost" href="/?all=true">Ver todos os {{ total }} pacientes</a>
+      {% endif %}
+    {% endif %}
+  </div>
+  <div class="list">
+    {% for p in patients %}
+    <a class="item" href="/patients/{{ p.id }}">
+      <span class="avatar md" aria-hidden="true">{{ p.name | initials }}</span>
+      <span class="grow">
+        <span class="name">{{ p.name }}</span>
+        <span class="meta">{{ p.birth_date | age }} anos · {{ p.sex | sex }} · {{ p.reason }}</span>
+      </span>
+      <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <span class="small muted">Última consulta</span>
+        <span style="font-size:14px;font-weight:700">{{ p.last_consult_at | when }}</span>
+      </span>
+      {% if alert_counts.get(p.id) %}<span class="count" title="Alertas em aberto" aria-label="{{ alert_counts[p.id] }} alertas em aberto">{{ alert_counts[p.id] }}</span>{% endif %}
+      <span class="badge {{ p.risk_level }}">{{ p.risk_level | risk }}</span>
+    </a>
+    {% else %}
+    <div class="empty">Nenhum paciente encontrado para “{{ query }}”.</div>
+    {% endfor %}
+  </div>
+  <span class="small muted">{{ count_label }}</span>
+</div>

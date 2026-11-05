@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ patient.name }} — VitalTrace{% endblock %}
+{% block content %}
+<main class="wrap tight stack" style="gap:28px">
+  <nav aria-label="Navegação"><a class="crumb" href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Pacientes</a></nav>
+
+  <section class="card lg row" style="gap:20px 24px">
+    <span class="avatar lg" aria-hidden="true">{{ patient.name | initials }}</span>
+    <div class="stack" style="flex:1 1 320px;min-width:0;gap:8px">
+      <h1 style="font-size:30px;font-weight:800;letter-spacing:-.02em">{{ patient.name }}</h1>
+      <span class="muted">{{ patient.birth_date | age }} anos · {{ patient.sex | sex }} · Prontuário nº {{ patient.record_number }}</span>
+      <div class="row" style="gap:8px">{% for c in patient.conditions %}<span class="chip">{{ c }}</span>{% endfor %}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+      <span class="badge {{ patient.risk_level }}" style="padding:6px 14px;font-size:13px">{{ patient.risk_level | risk }}</span>
+      <span class="small muted">Risco {{ patient.risk_score | num }}/100 · {{ alerts_total }} alerta{{ 's' if alerts_total != 1 }} em aberto</span>
+    </div>
+  </section>
+
+  <section class="stack" style="gap:14px">
+    <h2 style="font-size:18px;font-weight:800">Análises</h2>
+    <div class="actions">
+      <a class="action" href="/patients/{{ patient.id }}/audio">
+        <span class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0B5C56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+        <b>Analisar gravação</b>
+        <span class="d">Envie o áudio da consulta para transcrever, detectar termos críticos e sinais na voz.</span>
+      </a>
+      <a class="action" href="/patients/{{ patient.id }}/video">
+        <span class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0B5C56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg></span>
+        <b>Análise de vídeo</b>
+        <span class="d">Envie a gravação de uma sessão de fisioterapia ou de um procedimento para achar desvios.</span>
+      </a>
+      <a class="action" href="/patients/{{ patient.id }}/evolution">
+        <span class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0B5C56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span>
+        <b>Evolução clínica</b>
+        <span class="d">Anamnese de cada consulta, sinais vitais e prescrições, com análise de anomalias por IA.</span>
+      </a>
+    </div>
+  </section>
+
+  <div class="cols" style="gap:24px">
+    <div class="side" style="flex:1 1 420px">{% include "_alerts_panel.html" %}</div>
+    <section class="card stack" style="flex:1 1 420px;min-width:0;gap:12px">
+      {% if last %}
+      <h2 style="font-size:18px;font-weight:800">Última consulta · {{ last.occurred_at.strftime('%d/%m/%Y') }}</h2>
+      <p style="margin:0;line-height:1.6;color:#29484A">{{ last.anamnesis }}</p>
+      <div class="kpis">
+        <div class="kpi"><span>SpO₂</span><b class="{{ 'bad' if last.spo2 is not none and last.spo2 < 92 }}">{{ last.spo2 | num }}{{ '%' if last.spo2 is not none }}</b></div>
+        <div class="kpi"><span>Freq. cardíaca</span><b class="{{ 'bad' if last.heart_rate is not none and last.heart_rate > 100 }}">{{ last.heart_rate | num }}{{ ' bpm' if last.heart_rate is not none }}</b></div>
+        <div class="kpi"><span>Pressão</span><b>{{ last.systolic | num }}/{{ last.diastolic | num }}</b></div>
+      </div>
+      {% else %}
+      <h2 style="font-size:18px;font-weight:800">Última consulta</h2>
+      <p class="muted" style="margin:0">Nenhuma consulta registrada ainda.</p>
+      {% endif %}
+    </section>
+  </div>
+</main>
+{% endblock %}

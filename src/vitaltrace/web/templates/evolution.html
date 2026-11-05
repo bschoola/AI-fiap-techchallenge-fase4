@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Evolução clínica — {{ patient.name }}{% endblock %}
+{% block content %}
+<main class="wrap tight stack" style="gap:28px">
+  <nav><a class="crumb" href="/patients/{{ patient.id }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>{{ patient.name }}</a></nav>
+  <div class="row" style="justify-content:space-between;align-items:flex-end">
+    <div class="stack" style="gap:6px">
+      <h1 style="font-size:30px;font-weight:800;letter-spacing:-.02em">Evolução clínica</h1>
+      <p class="muted" style="margin:0">{{ patient.name }} · {{ patient.birth_date | age }} anos · prontuário {{ patient.record_number }}</p>
+    </div>
+    <span class="badge {{ patient.risk_level }}">{{ patient.risk_level | risk }} · {{ patient.risk_score | num }}/100</span>
+  </div>
+
+  <section class="card lg stack" style="gap:14px">
+    <div class="row" style="justify-content:space-between">
+      <div class="stack" style="gap:4px"><h2 style="font-size:18px;font-weight:800">Análise de anomalias com IA</h2>
+        <span class="muted" style="font-size:14px">Cruza sinais vitais, prescrições, movimento (vídeo), voz (áudio) e anamnese.</span></div>
+      <button class="btn primary" type="button" hx-post="/patients/{{ patient.id }}/evolution/analyze" hx-target="#anomaly" hx-indicator="#busy" hx-disabled-elt="this">Analisar anomalias com IA</button>
+    </div>
+    <span id="busy" class="htmx-indicator row small muted" style="gap:8px" role="status"><span class="spinner"></span>Analisando…</span>
+    <div id="anomaly" aria-live="polite">
+      {% if last_analysis %}<p class="small muted" style="margin:0">Última análise em {{ last_analysis.created_at.strftime('%d/%m/%Y %H:%M') }}: {{ last_analysis.summary }}</p>{% endif %}
+    </div>
+  </section>
+
+  <div class="grid2">
+    <section class="card stack" style="gap:8px"><h2 style="font-size:18px;font-weight:800">Saturação de oxigênio (SpO₂)</h2>{{ spo2_chart }}</section>
+    <section class="card stack" style="gap:8px"><h2 style="font-size:18px;font-weight:800">Frequência cardíaca</h2>{{ hr_chart }}</section>
+  </div>
+  <p class="small muted" style="margin:-12px 0 0">Últimos 14 dias de aferições (dados sintéticos). Linhas amarelas marcam mudanças de dose; vermelhas, o limiar clínico.</p>
+
+  <section class="card stack" style="gap:8px">
+    <h2 style="font-size:18px;font-weight:800">Prescrições</h2>
+    <table class="t"><thead><tr><th>Medicamento</th><th>Dose atual</th><th>Frequência</th><th>Evolução da dose</th><th>Situação</th></tr></thead><tbody>
+      {% for d in drugs %}
+      <tr><td><b>{{ d.drug }}</b></td><td>{{ d.current }}</td><td>{{ d.frequency }}</td>
+        <td>{{ d.history }}{% if d.changed %} <span class="badge medium" style="margin-left:6px">alterada</span>{% endif %}</td>
+        <td>{{ 'Ativo desde ' ~ d.since.strftime('%d/%m/%Y') if d.active else 'Encerrado' }}</td></tr>
+      {% else %}<tr><td colspan="5" class="muted">Sem prescrições registradas.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+
+  <section class="cols" style="gap:24px">
+    <form class="card stack main" style="flex:1 1 420px" method="post" action="/patients/{{ patient.id }}/evolution">
+      <h2 style="font-size:18px;font-weight:800">Nova consulta (anamnese)</h2>
+      {% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
+      <div><label for="anamnesis">Anamnese</label>
+        <textarea id="anamnesis" name="anamnesis" rows="6" required placeholder="Queixa principal, evolução desde a última consulta, achados do exame…">{{ draft }}</textarea></div>
+      <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">
+        <div><label for="spo2">SpO₂ (%)</label><input id="spo2" name="spo2" type="text" inputmode="decimal"></div>
+        <div><label for="heart_rate">FC (bpm)</label><input id="heart_rate" name="heart_rate" type="text" inputmode="decimal"></div>
+        <div><label for="systolic">PA sistólica</label><input id="systolic" name="systolic" type="text" inputmode="decimal"></div>
+        <div><label for="diastolic">PA diastólica</label><input id="diastolic" name="diastolic" type="text" inputmode="decimal"></div>
+      </div>
+      <div><button class="btn primary" type="submit">Salvar consulta</button></div>
+    </form>
+
+    <section class="card side stack" id="historico" style="flex:1 1 420px;gap:0">
+      <h2 style="font-size:18px;font-weight:800;margin-bottom:8px">Histórico de consultas</h2>
+      {% for c in history %}
+      <div class="hist">
+        <div class="row" style="justify-content:space-between;gap:8px"><b>{{ c.occurred_at.strftime('%d/%m/%Y · %H:%M') }}</b><span class="small muted">{{ c.doctor.name if c.doctor else '' }}</span></div>
+        <p style="margin:0;line-height:1.55;color:#29484A">{{ c.anamnesis }}</p>
+        <span class="small muted">SpO₂ {{ c.spo2 | num }}{{ '%' if c.spo2 is not none }} · FC {{ c.heart_rate | num }} · PA {{ c.systolic | num }}/{{ c.diastolic | num }}</span>
+      </div>
+      {% else %}<p class="muted">Nenhuma consulta registrada.</p>{% endfor %}
+    </section>
+  </section>
+</main>
+{% endblock %}

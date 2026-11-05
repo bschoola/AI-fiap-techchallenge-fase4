@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Analisar gravação — {{ patient.name }}{% endblock %}
+{% block content %}
+<main class="wrap tight stack" style="gap:24px;max-width:960px">
+  <nav><a class="crumb" href="/patients/{{ patient.id }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>{{ patient.name }}</a></nav>
+  <div class="stack" style="gap:6px">
+    <h1 style="font-size:30px;font-weight:800;letter-spacing:-.02em">Analisar gravação</h1>
+    <p class="muted" style="margin:0">Transcrição com Azure AI Speech, análise de texto com Azure AI Language, termos críticos e ritmo de fala.</p>
+  </div>
+
+  {% if audio_error %}<div class="notice err" role="alert"><b>Azure não configurado.</b> {{ audio_error }}</div>{% endif %}
+  {% if mock %}<div class="notice info">Modo simulado (<code>MOCK_AZURE=true</code>): o áudio enviado é ignorado e a transcrição é fixa. Use a transcrição colada para testar textos próprios.</div>{% endif %}
+
+  <form class="card stack" hx-post="/patients/{{ patient.id }}/audio" hx-target="#result" hx-encoding="multipart/form-data" hx-indicator="#busy" hx-disabled-elt="find button">
+    <div>
+      <label for="file">Arquivo de áudio (WAV, MP3, M4A, OGG — até {{ max_mb }} MB)</label>
+      <input id="file" name="file" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac,.webm">
+    </div>
+    <div>
+      <label for="text">…ou cole uma transcrição</label>
+      <textarea id="text" name="text" rows="3" placeholder="Ex.: Doutor, estou com falta de ar e uma dor no peito desde ontem."></textarea>
+    </div>
+    <div class="row">
+      <button class="btn primary" type="submit">Analisar</button>
+      <span id="busy" class="htmx-indicator row small muted" style="gap:8px" role="status"><span class="spinner"></span>Analisando… isso pode levar alguns segundos.</span>
+    </div>
+  </form>
+  <div id="result" aria-live="polite"></div>
+</main>
+{% endblock %}

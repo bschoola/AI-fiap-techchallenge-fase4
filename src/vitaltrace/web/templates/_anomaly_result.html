@@ -1,0 +1,31 @@
+<div class="stack" style="gap:16px;border-top:1px solid var(--line-soft);padding-top:16px">
+  <div class="row" style="gap:12px">
+    <span class="badge {{ report.risk.level }}" style="padding:6px 14px;font-size:13px">{{ report.risk.level | risk }}</span>
+    <b style="font-size:20px">Risco {{ report.risk.score | num }}/100</b>
+    <span class="muted small">{{ report.findings | length }} achado(s){% if report.new_alerts %} · {{ report.new_alerts }} alerta(s) novo(s) enviado(s) ao painel{% endif %}</span>
+  </div>
+  {% if report.risk.by_source %}
+  <div class="row" style="gap:8px">{% for src, pts in report.risk.by_source.items() %}<span class="chip">{{ src }} · {{ pts | num }} pts</span>{% endfor %}</div>
+  {% endif %}
+  <p style="margin:0;line-height:1.6;background:var(--bg);padding:14px 16px;border-radius:10px">{{ report.summary }}</p>
+  {% for src, items in by_source.items() %}
+  {% set serious = items | selectattr('severity.rank', 'ge', 3) | list %}
+  {% set minor = items | rejectattr('severity.rank', 'ge', 3) | list %}
+  <div>
+    <h3 style="font-size:15px;font-weight:800;margin-bottom:4px">{{ src | source }}</h3>
+    {% for f in serious %}
+    <div class="event"><span class="badge {{ f.severity.value }}">{{ f.severity.value | sev }}</span>
+      <div style="flex:1 1 280px"><b style="font-size:15px">{{ f.title }}</b><br><span class="muted" style="font-size:14px">{{ f.description }}</span></div></div>
+    {% endfor %}
+    {% if minor %}
+    <details style="border-top:1px solid var(--line-soft)"><summary style="cursor:pointer;padding:12px 0;font-size:14px;font-weight:700;color:var(--teal-deep)">{{ minor | length }} desvio(s) de menor severidade</summary>
+      {% for f in minor %}
+      <div class="event"><span class="badge {{ f.severity.value }}">{{ f.severity.value | sev }}</span>
+        <div style="flex:1 1 280px"><b style="font-size:15px">{{ f.title }}</b><br><span class="muted" style="font-size:14px">{{ f.description }}</span></div></div>
+      {% endfor %}
+    </details>
+    {% endif %}
+  </div>
+  {% else %}<p class="muted" style="margin:0">Nenhum desvio encontrado.</p>{% endfor %}
+  <p class="small muted" style="margin:0">{{ report.disclaimer }}</p>
+</div>

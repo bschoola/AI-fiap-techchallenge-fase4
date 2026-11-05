@@ -1,4 +1,4 @@
-from medmonitor.audio.language_service import chunk_text
+from vitaltrace.audio.language_service import chunk_text
 
 
 def test_short_text_is_single_chunk():

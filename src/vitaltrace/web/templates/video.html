@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Análise de vídeo — {{ patient.name }}{% endblock %}
+{% block content %}
+<main class="wrap tight stack" style="gap:24px;max-width:960px">
+  <nav><a class="crumb" href="/patients/{{ patient.id }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>{{ patient.name }}</a></nav>
+  <div class="stack" style="gap:6px">
+    <h1 style="font-size:30px;font-weight:800;letter-spacing:-.02em">Análise de vídeo</h1>
+    <p class="muted" style="margin:0">Postura, mobilidade, quedas e imobilidade a partir de uma gravação (câmera parada, uma pessoa em cena).</p>
+  </div>
+
+  {% if video_error %}<div class="notice err" role="alert">{{ video_error }}</div>{% else %}
+  <div class="notice info">Motor: <b>{{ backend }}</b>, em CPU. Analisa até {{ max_seconds }} s do vídeo, 2 quadros por segundo.
+    {% if 'OpenCV' in backend %}Para usar pose (esqueleto e ângulos de joelho), instale o YOLOv8: <code>pip install -r requirements-video.txt</code>.{% endif %}</div>
+  {% endif %}
+
+  <form class="card stack" hx-post="/patients/{{ patient.id }}/video" hx-target="#result" hx-encoding="multipart/form-data" hx-indicator="#busy" hx-disabled-elt="find button">
+    <div>
+      <label for="file">Arquivo de vídeo (MP4, AVI, MOV, MKV ou WebM — até {{ max_mb }} MB)</label>
+      <input id="file" name="file" type="file" accept="video/*,.mp4,.avi,.mov,.mkv,.webm" required>
+    </div>
+    <div class="row">
+      <button class="btn primary" type="submit" {{ 'disabled' if video_error }}>Analisar vídeo</button>
+      <span id="busy" class="htmx-indicator row small muted" style="gap:8px" role="status"><span class="spinner"></span>Analisando quadros… pode levar até um minuto em CPU.</span>
+    </div>
+  </form>
+  <div id="result" aria-live="polite"></div>
+</main>
+{% endblock %}

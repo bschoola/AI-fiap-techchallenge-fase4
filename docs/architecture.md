@@ -1,49 +1,40 @@
 # Arquitetura
 
-## Visão geral
-
 ```mermaid
 flowchart LR
-    A[Áudio da consulta] --> S[Azure AI Speech\nSpeech to Text]
-    S --> L[Azure AI Language\nsentimento + frases-chave]
-    S --> M[Métricas de fala\nritmo, pausas]
-    S --> T[Termos críticos\ndicionário pt-BR]
-    V[Vídeo clínico] --> Y[YOLOv8-pose / YOLOv8\nCPU] --> D[Desvios e relatório]
-    P[Sinais vitais / prescrições\nPhysioNet + sintéticos] --> AN[Detecção de anomalias]
-    L & M & T & D & AN --> E[Motor de alertas / fusão]
-    E --> DB[(SQLite)]
-    DB --> API[FastAPI]
-    API --> UI[Painel Streamlit\nbanner + toast na própria aplicação]
+    M[Médico] --> W[Portal web<br/>FastAPI + Jinja2 + HTMX]
+    W --> A[Pipeline de áudio]
+    W --> V[Pipeline de vídeo]
+    W --> E[Evolução clínica<br/>anamnese · sinais vitais · prescrições]
+    A -->|fala| SP[Azure AI Speech]
+    A -->|texto| LG[Azure AI Language]
+    A --> T[Termos críticos · ritmo de fala]
+    V --> Y[YOLOv8-pose em CPU<br/>ou OpenCV]
+    V --> EV[Queda · imobilidade · assimetria · mobilidade]
+    E --> AN[Detectores de anomalia<br/>regras · z-score · tendência · Isolation Forest · doses]
+    T --> F[Fusão: correlação e score de risco]
+    EV --> F
+    AN --> F
+    F --> AL[(Alertas)]
+    F --> R[(Risco do paciente)]
+    AL --> W
+    DB[(Postgres)] <--> W
 ```
-
-| Etapa | Estado |
-|---|---|
-| Áudio (Speech + Language + termos + métricas + alertas) | ✅ primeiro slice |
-| Alertas dentro da aplicação (API + painel) | ✅ |
-| Vídeo (pose + objetos) | ⏳ `src/medmonitor/video` |
-| Anomalias (sinais vitais, prescrições, movimentação) | ⏳ `src/medmonitor/anomaly` |
-| Fusão multimodal / score de risco | ⏳ `src/medmonitor/fusion` |
 
 ## Decisões
 
-- **Tudo em CPU.** Vídeo com modelos *nano* (`yolov8n`, `yolov8n-pose`), ~5 fps e frames reduzidos. Pose via YOLOv8-pose (ou MediaPipe) no lugar do OpenPose, que exige GPU/build pesado; a troca deve ser justificada no relatório.
-- **Alertas na própria aplicação**, não por e-mail/Teams: o motor grava em SQLite, a API expõe `GET /alerts` e o painel consulta a cada 3 s, exibe um banner (crítico/aberto) e dispara *toast* para alertas novos; o médico confirma com **Reconhecer**.
-- **Serviços atrás de interfaces** (`Transcriber`, `TextAnalyzer`): permitem testes sem Azure e o modo `MOCK_AZURE=true`.
-- **Heurísticas explicáveis** (dicionário + limiares) antes de modelos opacos; os limiares ficam em `config.py`/`.env`.
-- **Dados:** PhysioNet e AudioSet são públicos; prescrições e vídeos de exemplo devem ser sintéticos/públicos. Nenhum dado real de paciente.
+- **Alertas na própria aplicação**, não por e-mail/Teams: ficam no banco, o painel faz *polling* (HTMX) a cada 3 s, uma faixa vermelha avisa quando há crítico em aberto e o médico confirma com **Estou ciente** (registra quem e quando).
+- **Front sem build**: FastAPI + Jinja2 + HTMX, tudo em Python. Gráficos são SVG gerados no servidor.
+- **CPU**: YOLOv8n-pose (~6 MB) em quadros reduzidos a 640 px, 2 quadros/s. Sem `ultralytics`, o plano B usa subtração de fundo do OpenCV (bounding box, sem articulações).
+- **Anomalias leves e explicáveis**: regras clínicas, desvio robusto (mediana/MAD) contra a linha de base do próprio paciente, tendência por regressão linear e Isolation Forest treinado na linha de base. Cada achado traz o motivo e a evidência.
+- **Risco**: pontos por severidade, teto de 50 por modalidade (o score exige convergência) e nível "crítico" só com algum achado crítico. Correlações entre modalidades geram achados próprios (ex.: *piora clínica apesar do ajuste de dose*).
+- **Resumo por regras**, determinístico e sem LLM, sempre com aviso de que não é diagnóstico.
+- **Serviços atrás de interfaces** (`Transcriber`, `TextAnalyzer`, `PersonEstimator`): trocar Azure por simulado, ou YOLO por OpenCV, não toca no resto.
+- **Dados**: SQLAlchemy 2. Postgres no Docker; SQLite local e nos testes. Seed idempotente na subida.
 
-## API
+## Fluxo de um achado
 
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/health` | Estado e modo (mock ou Azure) |
-| POST | `/audio/analyze` | Multipart: `patient_id` + `file` → transcrição, análise e alertas |
-| POST | `/text/analyze` | JSON `{patient_id, text}` → mesmo resultado, sem áudio |
-| GET | `/alerts` | Filtros `status`, `patient_id`, `limit` |
-| POST | `/alerts/{id}/ack` | Reconhece o alerta |
-
-## Limitações a registrar no relatório
-
-- O dicionário de termos e os limiares de ritmo de fala são ilustrativos, sem validação clínica.
-- O sistema apoia a decisão da equipe médica e não substitui avaliação profissional.
-- Dados pessoais de saúde são sensíveis (LGPD): o projeto usa apenas dados públicos ou sintéticos.
+1. Upload (áudio/vídeo) ou clique em *Analisar anomalias com IA*.
+2. O módulo gera achados (`Finding`: origem, severidade, título, descrição, evidência).
+3. A fusão correlaciona e calcula o risco; achados de severidade alta/crítica viram alertas (sem duplicar os que já estão em aberto).
+4. O painel mostra o alerta; **Estou ciente** o encerra.

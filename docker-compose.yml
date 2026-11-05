@@ -1,21 +1,38 @@
-# Pré-requisito: copiar .env.example para .env e preencher (ou MOCK_AZURE=true).
+# Pré-requisito: copiar .env.example para .env (preencher o Azure ou usar MOCK_AZURE=true).
+# Subir:  docker compose up --build        Portal: http://localhost:8000
 services:
-  api:
-    build: .
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vitaltrace
+      POSTGRES_PASSWORD: vitaltrace
+      POSTGRES_DB: vitaltrace
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vitaltrace -d vitaltrace"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build:
+      context: .
+      args:
+        WITH_YOLO: "true"
     env_file: .env
     environment:
-      DATABASE_PATH: /app/data/alerts.db
+      DATABASE_URL: postgresql+psycopg://vitaltrace:vitaltrace@db:5432/vitaltrace
     volumes:
-      - ./data:/app/data
+      - yolo-weights:/root/.config/Ultralytics   # evita baixar os pesos a cada recriação
     ports:
       - "8000:8000"
-
-  dashboard:
-    build: .
-    command: ["streamlit", "run", "dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-    environment:
-      API_URL: http://api:8000
-    ports:
-      - "8501:8501"
     depends_on:
-      - api
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  yolo-weights:

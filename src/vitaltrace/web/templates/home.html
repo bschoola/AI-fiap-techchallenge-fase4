@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Pacientes — VitalTrace{% endblock %}
+{% block content %}
+<main class="wrap cols">
+  <section class="main stack">
+    <div class="stack" style="gap:6px">
+      <h1 style="font-size:32px;font-weight:800;letter-spacing:-.02em">Pacientes</h1>
+      <p class="muted" style="margin:0">Busque pelo nome ou abra um dos atendimentos mais recentes.</p>
+    </div>
+    <div>
+      <label for="q">Buscar paciente por nome</label>
+      <div class="search">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3F5A5B" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="q" name="q" type="search" value="{{ query }}" placeholder="Ex.: Helena, Roberto, Sofia" autocomplete="off"
+               hx-get="/patients-list" hx-trigger="input changed delay:250ms, search" hx-target="#patient-list" hx-swap="outerHTML">
+      </div>
+    </div>
+    {% include "_patient_list.html" %}
+  </section>
+  <div class="side">{% include "_alerts_panel.html" %}</div>
+</main>
+{% endblock %}
