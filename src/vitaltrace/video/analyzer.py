@@ -13,11 +13,12 @@ from vitaltrace.models import Alert, Severity
 from vitaltrace.video import pose
 from vitaltrace.video.estimators import MotionBBoxEstimator, PersonEstimator, YoloPoseEstimator
 from vitaltrace.video.events import analyze_observations
-from vitaltrace.video.models import PersonObservation, VideoAnalysis, VideoEvent
+from vitaltrace.video.models import Keyframe, PersonObservation, VideoAnalysis, VideoEvent
 from vitaltrace.video.report import build_report, type_label
 
 MAX_WIDTH = 640  # quadros são reduzidos para acelerar a inferência em CPU
 MAX_KEYFRAMES = 3
+KEYFRAME_WIDTH = 480  # quadros guardados no banco: menores que os usados na inferência
 
 
 class VideoError(RuntimeError):
@@ -112,21 +113,29 @@ class VideoAnalyzer:
             return frame
         return cv2.resize(frame, (MAX_WIDTH, int(h * MAX_WIDTH / w)), interpolation=cv2.INTER_AREA)
 
-    def _keyframes(self, cap, observations, times, events: list[VideoEvent]) -> list[str]:
+    def _keyframes(self, cap, observations, times, events: list[VideoEvent]) -> list[Keyframe]:
         """Quadros com a pose desenhada: um por evento mais grave; senão, o meio do vídeo."""
-        wanted = [(e.t_start, type_label(e.type)) for e in
-                  sorted(events, key=lambda e: e.severity.rank, reverse=True)[:MAX_KEYFRAMES]]  # fmt: skip
+        ranked = sorted(enumerate(events), key=lambda item: item[1].severity.rank, reverse=True)
+        wanted = [(e.t_start, type_label(e.type), idx) for idx, e in ranked[:MAX_KEYFRAMES]]
         if not wanted:
-            wanted = [(times[len(times) // 2], "Quadro de exemplo")]
-        images = []
-        for t_wanted, label in wanted:
+            wanted = [(times[len(times) // 2], "Quadro de exemplo", None)]
+        images: list[Keyframe] = []
+        for t_wanted, label, event_index in wanted:
             nearest = min(range(len(times)), key=lambda i: abs(times[i] - t_wanted))
             cap.set(cv2.CAP_PROP_POS_MSEC, times[nearest] * 1000)
             ok, frame = cap.read()
             if not ok:
                 continue
             frame = self._resize(frame)
-            images.append(_to_data_uri(_draw(frame, observations[nearest], f"{label} · {times[nearest]:.0f} s")))
+            drawn = _draw(frame, observations[nearest], f"{label} · {times[nearest]:.0f} s")
+            if drawn.shape[1] > KEYFRAME_WIDTH:
+                drawn = cv2.resize(
+                    drawn, (KEYFRAME_WIDTH, int(drawn.shape[0] * KEYFRAME_WIDTH / drawn.shape[1])),
+                    interpolation=cv2.INTER_AREA,
+                )
+            images.append(
+                Keyframe(t=round(times[nearest], 1), label=label, image=_to_data_uri(drawn), event_index=event_index)
+            )
         return images
 
 

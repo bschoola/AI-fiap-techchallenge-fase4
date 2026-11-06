@@ -22,6 +22,15 @@ class VideoEvent(BaseModel):
     description: str
 
 
+class Keyframe(BaseModel):
+    """Quadro do vídeo com a pessoa/pose desenhada; guardado para a linha do tempo do paciente."""
+
+    t: float  # segundos desde o início do vídeo
+    label: str
+    image: str  # data URI JPEG
+    event_index: int | None = None  # posição do evento relacionado em `events` (None = quadro de exemplo)
+
+
 class VideoMetrics(BaseModel):
     duration_s: float = 0.0
     frames_analyzed: int = 0
@@ -38,14 +47,15 @@ class VideoAnalysis(BaseModel):
     metrics: VideoMetrics = Field(default_factory=VideoMetrics)
     events: list[VideoEvent] = Field(default_factory=list)
     report: str = ""
-    keyframes: list[str] = Field(default_factory=list)  # data URIs JPEG com a pose desenhada
+    keyframes: list[Keyframe] = Field(default_factory=list)
     alerts: list[Alert] = Field(default_factory=list)
 
     def payload(self) -> dict:
-        """O que fica salvo no banco (sem as imagens, que são pesadas)."""
+        """O que fica salvo no banco. Os quadros-chave (poucos e reduzidos) entram para a linha do tempo."""
         return {
             "backend": self.backend,
             "metrics": self.metrics.model_dump(),
             "events": [e.model_dump(mode="json") for e in self.events],
             "report": self.report,
+            "keyframes": [k.model_dump() for k in self.keyframes],
         }

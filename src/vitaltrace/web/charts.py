@@ -7,6 +7,7 @@ import pandas as pd
 from markupsafe import Markup
 
 TEAL, CRIT, AMBER, INK, MUTED, GRID = "#0F766E", "#B42318", "#C98A0B", "#0E2A2B", "#3F5A5B", "#E1EAEA"
+EVENT_COLORS = {"critical": CRIT, "high": "#C2570C", "medium": AMBER, "low": "#5B7C7D", "stable": "#5B7C7D"}
 
 
 def line_chart(
@@ -19,6 +20,7 @@ def line_chart(
     y_max: float,
     thresholds: list[tuple[float, str]] | None = None,
     markers: list[tuple[datetime, str]] | None = None,
+    events: list[dict] | None = None,
     width: int = 640,
     height: int = 230,
 ) -> Markup:
@@ -27,6 +29,11 @@ def line_chart(
     left, right, top, bottom = 44, 12, 14, 30
     pw, ph = width - left - right, height - top - bottom
     t0, t1 = df["ts"].min(), df["ts"].max()
+    last_reading = t1
+    # análises feitas depois da última aferição ampliam o eixo, para continuarem visíveis
+    inside = [ev for ev in events or [] if pd.Timestamp(ev["at"]) >= t0]
+    if inside:
+        t1 = max(t1, max(pd.Timestamp(ev["at"]) for ev in inside) + pd.Timedelta(hours=3))
     span = max((t1 - t0).total_seconds(), 1.0)
 
     def x(ts) -> float:
@@ -64,7 +71,24 @@ def line_chart(
         parts.append(f'<text x="{xx - 4:.1f}" y="{top + 12}" font-size="11" fill="{AMBER}" text-anchor="end" font-weight="700">{escape(label)}</text>')
     points = " ".join(f"{x(ts):.1f},{y(v):.1f}" for ts, v in zip(df["ts"], df[column]))
     parts.append(f'<polyline points="{points}" fill="none" stroke="{TEAL}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>')
-    lx, ly = x(df["ts"].iloc[-1]), y(float(df[column].iloc[-1]))
+    lx, ly = x(last_reading), y(float(df[column].iloc[-1]))
     parts.append(f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="4.5" fill="{TEAL}" stroke="#fff" stroke-width="2"/>')
+    for ev in sorted(inside, key=lambda e: e["at"]):
+        parts.append(_event_marker(ev, x(ev["at"]), top + ph - 11, top, top + ph))
     parts.append("</svg>")
     return Markup("".join(parts))
+
+
+def _event_marker(ev: dict, xx: float, yy: float, y_top: float, y_bottom: float) -> str:
+    """Círculo = áudio, losango = vídeo; a cor é a gravidade. Clicar leva à entrada da linha do tempo."""
+    color = EVENT_COLORS.get(ev["level"], EVENT_COLORS["stable"])
+    label = escape(ev["label"])
+    if ev["kind"] == "video":
+        shape = f'<path d="M{xx:.1f} {yy - 7:.1f} L{xx + 7:.1f} {yy:.1f} L{xx:.1f} {yy + 7:.1f} L{xx - 7:.1f} {yy:.1f} Z"'
+    else:
+        shape = f'<circle cx="{xx:.1f}" cy="{yy:.1f}" r="6.5"'
+    return (
+        f'<a href="{escape(ev["href"])}" aria-label="{label}"><title>{label}</title>'
+        f'<line x1="{xx:.1f}" x2="{xx:.1f}" y1="{y_top}" y2="{y_bottom}" stroke="{color}" stroke-width="1" stroke-dasharray="2 3" opacity=".55"/>'
+        f'{shape} fill="{color}" stroke="#fff" stroke-width="2"/></a>'
+    )

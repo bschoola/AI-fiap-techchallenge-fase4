@@ -13,7 +13,7 @@ Portal médico com análise multimodal de pacientes (áudio, vídeo, sinais vita
 | Alertas | Painel que se atualiza a cada 3 s, faixa vermelha para críticos e botão **Estou ciente** |
 | Paciente → Analisar gravação | Upload de áudio (ou transcrição colada): Azure Speech → Azure Language → termos críticos, sentimento, ritmo de fala → alertas |
 | Paciente → Análise de vídeo | Upload de vídeo: pose/movimento em CPU → queda, imobilidade, assimetria de joelhos, mobilidade → relatório automático |
-| Paciente → Evolução clínica | Anamnese por consulta, gráficos de SpO₂/FC com mudanças de dose, prescrições e **Análise de anomalias com IA** |
+| Paciente → Evolução clínica | **Linha do tempo** com consultas, áudios, vídeos e análises de IA (cada registro abre mostrando o que foi analisado e o resultado), gráficos de SpO₂/FC com mudanças de dose e marcadores de áudio/vídeo, prescrições e **Análise de anomalias com IA** |
 
 Anomalias detectadas: séries de sinais vitais (regras clínicas + desvio robusto da linha de base + tendência + Isolation Forest), evolução de prescrições (saltos e aumentos repetidos de dose), movimento (queda de mobilidade e quedas no vídeo) e texto da anamnese. A **fusão** cruza as modalidades e calcula o risco (0–100) de cada paciente.
 
@@ -60,6 +60,16 @@ python scripts/generate_sample_audio.py    # gera 3 áudios sintéticos em data/
 ```
 
 Em modo simulado (`MOCK_AZURE=true`) a transcrição é fixa e ignora o áudio; para textos próprios use o campo de transcrição colada.
+
+## Vídeo por link do YouTube (opcional)
+
+Na tela **Análise de vídeo** dá para colar um link do YouTube em vez de enviar o arquivo. O servidor baixa só os primeiros 120 s, em até 480p, analisa e apaga o arquivo (o vídeo não é guardado). Só aceita endereços do `youtube.com` e `youtu.be`, e apenas o ID do vídeo chega ao `yt-dlp`.
+
+- **Docker:** já vem pronto (o `yt-dlp` e o Deno entram na imagem). O container precisa de internet.
+- **Local (sem Docker):** o `yt-dlp` vem no `requirements.txt`, e o YouTube exige também um runtime JavaScript: no Windows, `winget install DenoLand.Deno`.
+- **Se o download falhar do nada:** o YouTube muda com frequência. Rode `pip install -U "yt-dlp[default]"` (no Docker, `docker compose build --no-cache web`). Vídeos privados, com restrição de idade ou que peçam login não funcionam.
+- **Desligar:** `YOUTUBE_ENABLED=false` no `.env` esconde o campo.
+- **Uso:** só para demonstração, com vídeos públicos. Os Termos de Serviço do YouTube restringem baixar vídeos fora dos recursos que ele oferece. Para a análise funcionar bem, prefira clipes de câmera parada e uma pessoa em cena.
 
 ## Testes
 

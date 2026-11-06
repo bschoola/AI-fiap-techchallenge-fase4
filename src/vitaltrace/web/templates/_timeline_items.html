@@ -1,0 +1,160 @@
+{# Itens da linha do tempo. Cada item abre e mostra o que foi analisado e o resultado. #}
+{% set sentiment_pt = {'negative': 'Negativo', 'neutral': 'Neutro', 'positive': 'Positivo', 'mixed': 'Misto'} %}
+
+{% macro risk_line(e) %}
+  {% if e.risk %}
+  <p class="tl-risk">Risco do paciente após esta análise:
+    <span class="badge {{ e.risk.before.level }}">{{ e.risk.before.level | risk }} · {{ e.risk.before.score | num }}</span>
+    <span aria-hidden="true">→</span><span class="sr-only"> para </span>
+    <span class="badge {{ e.risk.after.level }}">{{ e.risk.after.level | risk }} · {{ e.risk.after.score | num }}</span></p>
+  {% endif %}
+{% endmacro %}
+
+{% macro alerts_block(e) %}
+  <h3>Alertas gerados</h3>
+  {% for a in e.alerts %}
+  <div class="alert-item"><div class="row" style="gap:8px;flex-wrap:wrap">
+    <span class="badge {{ a.severity }}">{{ a.severity | sev }}</span>
+    {% if a.status == 'acknowledged' %}<span class="small muted">Ciente{{ ' · ' ~ a.acknowledged_by if a.acknowledged_by }}{{ ' · ' ~ a.acknowledged_at.strftime('%d/%m %H:%M') if a.acknowledged_at }}</span>
+    {% elif a.status == 'open' %}<span class="small" style="color:#8F3F06;font-weight:700">Em aberto</span>{% endif %}
+    {% if not a.new %}<span class="small muted">já estava em aberto</span>{% endif %}
+  </div><span>{{ a.title }}</span></div>
+  {% else %}<p class="muted" style="margin:0">Nenhum alerta: o conteúdo não passou dos limiares.</p>{% endfor %}
+{% endmacro %}
+
+<ol class="tl">
+{% for e in page.entries %}
+  {% set p = e.payload %}
+  <li class="tl-li k-{{ e.kind }}">
+  <details class="tl-item" id="{{ e.key }}">
+    <summary>
+      <span class="tl-ico" aria-hidden="true">
+        {% if e.kind == 'consult' %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l1 2h3v14H5V6h3z"/><path d="M9 12h6M9 16h4"/></svg>
+        {% elif e.kind == 'audio' %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
+        {% elif e.kind == 'video' %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>
+        {% else %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>{% endif %}
+      </span>
+      <span class="tl-head">
+        <span class="tl-title"><b>{{ e.title }}</b><span class="small muted">{{ e.at.strftime('%d/%m/%Y · %H:%M') }}{{ ' · ' ~ e.doctor if e.doctor }}</span></span>
+        <span class="tl-sum">{{ e.summary }}</span>
+      </span>
+      <span class="tl-meta">
+        <span class="badge {{ e.level }}">{{ e.level_label }}</span>
+        {% if e.risk %}<span class="small muted">risco {{ e.risk.before.score | num }} → <b>{{ e.risk.after.score | num }}</b></span>{% endif %}
+      </span>
+    </summary>
+
+    <div class="tl-body">
+    {% if e.kind == 'consult' %}
+      <section class="tl-sec"><h3>O que foi registrado</h3>
+        <p class="tl-text">{{ highlight(e.consult.anamnesis) }}</p>
+        <div class="kpis">
+          <div class="kpi"><span>SpO₂</span><b>{{ e.consult.spo2 | num }}{{ '%' if e.consult.spo2 is not none }}</b></div>
+          <div class="kpi"><span>Frequência cardíaca</span><b>{{ e.consult.heart_rate | num }}</b></div>
+          <div class="kpi"><span>Pressão arterial</span><b>{{ e.consult.systolic | num }}/{{ e.consult.diastolic | num }}</b></div>
+        </div>
+      </section>
+      <section class="tl-sec"><h3>Resultado da análise do texto</h3>
+        {% for f in e.findings %}
+        <div class="event"><span class="badge {{ f.severity.value }}">{{ f.severity.value | sev }}</span>
+          <div style="flex:1 1 280px"><b>{{ f.title }}</b><br><span class="muted" style="font-size:14px">{{ f.description }}</span></div></div>
+        {% else %}<p class="muted" style="margin:0">Nenhum termo de alerta encontrado nesta anamnese.</p>{% endfor %}
+      </section>
+
+    {% elif e.kind == 'audio' %}
+      {% set inp = p.get('input') or {} %}
+      <section class="tl-sec"><h3>O que foi analisado</h3>
+        <p class="small muted" style="margin:0">
+          {% if inp.get('type') == 'file' %}Arquivo de áudio <b>{{ inp.get('filename') }}</b>{{ ' (' ~ inp.get('size_kb') ~ ' KB)' if inp.get('size_kb') }}, transcrito pelo Azure Speech.
+          {% elif inp.get('type') == 'text' %}Transcrição colada pela equipe (sem arquivo de áudio).
+          {% else %}Gravação de áudio.{% endif %}
+          O áudio original não é guardado, apenas a transcrição.</p>
+        {% if inp.get('mock') and inp.get('type') == 'file' %}<div class="notice info">Transcrição simulada: o conteúdo do áudio foi ignorado (modo <code>MOCK_AZURE</code>).</div>{% endif %}
+        <p class="transcript" style="margin:0">{{ highlight(p.get('transcription', {}).get('text', '')) }}</p>
+      </section>
+      <section class="tl-sec"><h3>Resultado</h3>
+        {% set m = p.get('metrics') or {} %}
+        {% set s = (p.get('text_analysis') or {}).get('sentiment') or {} %}
+        <div class="kpis">
+          <div class="kpi"><span>Sentimento</span><b>{{ sentiment_pt.get(s.get('label'), '—') }}</b></div>
+          <div class="kpi"><span>Negativo</span><b>{{ ((s.get('negative') or 0) * 100) | num }}%</b></div>
+          <div class="kpi"><span>Palavras/min</span><b>{{ m.get('words_per_minute') | num }}</b></div>
+          <div class="kpi"><span>Tempo em pausa</span><b>{{ ((m.get('pause_ratio') * 100) | num) ~ '%' if m.get('pause_ratio') is not none else '—' }}</b></div>
+        </div>
+        {% set phrases = (p.get('text_analysis') or {}).get('key_phrases') or [] %}
+        {% if phrases %}<div class="row" style="gap:6px;flex-wrap:wrap">{% for k in phrases[:10] %}<span class="chip">{{ k }}</span>{% endfor %}</div>{% endif %}
+        {% set terms = p.get('critical_terms') or [] %}
+        {% if terms %}
+        <table class="t"><thead><tr><th>Termo</th><th>Categoria</th><th>Severidade</th><th>Contexto</th></tr></thead><tbody>
+          {% for t in terms %}
+          <tr><td><b>{{ t.term }}</b>{% if t.negated %} <span class="small muted">(negado)</span>{% endif %}</td><td>{{ t.category }}</td>
+            <td><span class="badge {{ 'low' if t.negated else t.severity }}">{{ 'NEGADO' if t.negated else t.severity | sev }}</span></td>
+            <td class="muted">…{{ t.context }}…</td></tr>
+          {% endfor %}
+        </tbody></table>
+        {% else %}<p class="muted" style="margin:0">Nenhum termo crítico encontrado.</p>{% endif %}
+      </section>
+      <section class="tl-sec">{{ alerts_block(e) }}{{ risk_line(e) }}</section>
+
+    {% elif e.kind == 'video' %}
+      {% set inp = p.get('input') or {} %}
+      {% set m = p.get('metrics') or {} %}
+      {% set events = p.get('events') or [] %}
+      <section class="tl-sec"><h3>O que foi analisado</h3>
+        <p class="small muted" style="margin:0">
+          {% if inp.get('type') == 'youtube' %}Vídeo do YouTube <a href="{{ inp.get('url') }}" target="_blank" rel="noopener noreferrer"><b>{{ inp.get('title') or inp.get('url') }}</b></a> (primeiros {{ inp.get('clip_seconds') }} s{{ ', ' ~ inp.get('size_mb') ~ ' MB baixados' if inp.get('size_mb') }}), {% elif inp.get('filename') %}Vídeo <b>{{ inp.get('filename') }}</b>{{ ' (' ~ inp.get('size_mb') ~ ' MB)' if inp.get('size_mb') }}, {% endif %}
+          {{ (m.get('duration_s') | num) ~ ' s analisados' if m.get('duration_s') is not none }}{{ ' · ' ~ m.get('frames_analyzed') ~ ' quadros amostrados' if m.get('frames_analyzed') }}{{ ' · método: ' ~ p.get('backend') if p.get('backend') }}.
+          O vídeo original não é guardado, apenas os quadros-chave abaixo.</p>
+        {% if p.get('keyframes') %}
+        <div class="keyframes">
+          {% for k in p.keyframes %}
+          <figure class="kf">
+            <img loading="lazy" src="/patients/{{ patient.id }}/analyses/{{ e.analysis_id }}/frames/{{ loop.index0 }}" alt="Quadro-chave: {{ k.label }} aos {{ k.t | round(0) | int }} s, com a pessoa detectada destacada">
+            <figcaption class="small"><b>{{ k.label }}</b> · {{ k.t | round(0) | int }} s{% if k.event_index is not none and events[k.event_index] is defined %}<br><span class="muted">{{ events[k.event_index].description }}</span>{% endif %}</figcaption>
+          </figure>
+          {% endfor %}
+        </div>
+        {% else %}<p class="muted" style="margin:0">Sem quadros-chave guardados para esta análise.</p>{% endif %}
+      </section>
+      <section class="tl-sec"><h3>Resultado</h3>
+        <div class="kpis">
+          <div class="kpi"><span>Índice de mobilidade</span><b>{{ m.get('mobility_index') | num(2) }}</b></div>
+          <div class="kpi"><span>Vídeo anterior</span><b>{{ e.prev_mobility | num(2) }}</b></div>
+          <div class="kpi"><span>Imobilidade</span><b>{{ m.get('immobility_s') | num }}{{ ' s' if m.get('immobility_s') is not none }}</b></div>
+          <div class="kpi"><span>Pessoa visível</span><b>{{ ((m.get('person_detected_ratio') * 100) | num) ~ '%' if m.get('person_detected_ratio') is not none else '—' }}</b></div>
+        </div>
+        {% for ev in events %}
+        <div class="event"><span class="badge {{ ev.severity }}">{{ ev.severity | sev }}</span>
+          <div style="flex:1 1 280px"><b>{{ type_label(ev.type) }}</b> <span class="small muted">{{ ev.t_start | round(0) | int }}–{{ ev.t_end | round(0) | int }} s</span><br><span class="muted" style="font-size:14px">{{ ev.description }}</span></div></div>
+        {% else %}<p class="muted" style="margin:0">Nenhum evento: movimento dentro do esperado.</p>{% endfor %}
+        {% if p.get('report') %}<pre class="report">{{ p.report }}</pre>{% endif %}
+      </section>
+      <section class="tl-sec">{{ alerts_block(e) }}{{ risk_line(e) }}</section>
+
+    {% else %}
+      <section class="tl-sec"><h3>O que foi analisado</h3>
+        <p class="small muted" style="margin:0">Sinais vitais, prescrições, movimento (vídeo), voz (áudio) e anamnese do paciente no momento da análise.</p>
+      </section>
+      <section class="tl-sec"><h3>Resultado</h3>
+        <p style="margin:0;line-height:1.6">{{ e.full_summary }}</p>
+        {% set r = p.get('risk') or {} %}
+        {% if r %}<p class="tl-risk">Risco calculado: <span class="badge {{ r.get('level') }}">{{ r.get('level') | risk }} · {{ r.get('score') | num }}/100</span>{% if p.get('new_alerts') %} · {{ p.get('new_alerts') }} alerta(s) novo(s){% endif %}</p>{% endif %}
+        {% for f in (p.get('findings') or [])[:8] %}
+        <div class="event"><span class="badge {{ f.severity }}">{{ f.severity | sev }}</span>
+          <div style="flex:1 1 280px"><b>{{ f.title }}</b> <span class="small muted">{{ f.source | source }}</span><br><span class="muted" style="font-size:14px">{{ f.description }}</span></div></div>
+        {% else %}<p class="muted" style="margin:0">Nenhum achado.</p>{% endfor %}
+        {% if (p.get('findings') or []) | length > 8 %}<p class="small muted" style="margin:0">+ {{ (p.findings | length) - 8 }} achado(s) de menor gravidade no relatório da análise.</p>{% endif %}
+      </section>
+    {% endif %}
+    </div>
+  </details>
+  </li>
+{% else %}
+  <li class="muted">Nada registrado nesta categoria ainda.</li>
+{% endfor %}
+</ol>
+{% if page.next_offset is not none %}
+<div class="tl-more">
+  <button type="button" class="btn" hx-get="/patients/{{ patient.id }}/timeline?kind={{ page.kind }}&offset={{ page.next_offset }}" hx-target="closest .tl-more" hx-swap="outerHTML">Mostrar mais ({{ page.total - page.next_offset }})</button>
+</div>
+{% endif %}

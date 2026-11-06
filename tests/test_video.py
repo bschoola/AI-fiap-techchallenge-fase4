@@ -133,7 +133,9 @@ def test_synthetic_video_fall(analyzer, tmp_path):
     result = analyzer.analyze(video)
     falls = [e for e in result.events if e.type == "fall_suspected"]
     assert falls and falls[0].severity == Severity.CRITICAL
-    assert result.keyframes and result.keyframes[0].startswith("data:image/jpeg;base64,")
+    assert result.keyframes and result.keyframes[0].image.startswith("data:image/jpeg;base64,")
+    assert result.keyframes[0].event_index is not None and result.keyframes[0].t >= 0
+    assert result.payload()["keyframes"][0]["label"]
     assert "Queda suspeita" in result.report
     alerts = build_video_alerts(7, result)
     assert alerts[0].severity == Severity.CRITICAL and alerts[0].patient_id == "7"

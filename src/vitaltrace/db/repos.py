@@ -88,6 +88,32 @@ def add_alerts(s: Session, alerts: list[Alert], *, dedupe: bool = True) -> list[
     return saved
 
 
+def alert_refs(s: Session, patient_id: int, alerts: list[Alert], created: list[AlertRow]) -> list[dict]:
+    """Liga cada alerta da análise à linha gravada (nova ou já em aberto), para a linha do tempo."""
+    by_key = {(row.source, row.title): row.id for row in created}
+    refs = []
+    for alert in alerts:
+        key = (alert.source, alert.title)
+        row_id = by_key.get(key)
+        is_new = row_id is not None
+        if row_id is None:
+            row_id = s.scalar(
+                select(AlertRow.id).where(
+                    AlertRow.patient_id == patient_id,
+                    AlertRow.source == alert.source,
+                    AlertRow.title == alert.title,
+                ).order_by(AlertRow.created_at.desc())
+            )
+        refs.append({"id": row_id, "severity": alert.severity.value, "title": alert.title, "new": is_new})
+    return refs
+
+
+def alerts_by_id(s: Session, ids: list[str]) -> dict[str, AlertRow]:
+    if not ids:
+        return {}
+    return {row.id: row for row in s.scalars(select(AlertRow).where(AlertRow.id.in_(ids)))}
+
+
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 

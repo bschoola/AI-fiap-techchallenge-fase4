@@ -1,0 +1,33 @@
+{# Área de envio de arquivo (arrastar e soltar). O <input type=file> real continua no formulário:
+   funciona com teclado e leitor de tela, e o JS (static/js/dropzone.js) só cuida da aparência e das checagens. #}
+{% macro dropzone(id, name, label, formats, max_mb, kind, accept, exts, required=false) %}
+<div class="drop" data-drop data-max-mb="{{ max_mb }}" data-kind="{{ kind }}" data-exts="{{ exts }}">
+  <label for="{{ id }}">{{ label }}</label>
+  <div class="drop-zone">
+    <input class="drop-input" id="{{ id }}" name="{{ name }}" type="file" accept="{{ accept }}" aria-describedby="{{ id }}-hint {{ id }}-error"{{ ' required' if required }}>
+    <div class="drop-area">
+      <span class="drop-ico" aria-hidden="true">
+        {% if kind == 'audio' %}<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
+        {% else %}<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>{% endif %}
+      </span>
+      <span class="drop-title">Arraste {{ 'o áudio' if kind == 'audio' else 'o vídeo' }} para cá ou <u>escolha no computador</u></span>
+      <span class="drop-hint" id="{{ id }}-hint">{{ formats }} · até {{ max_mb }} MB</span>
+    </div>
+    <div class="drop-file">
+      <span class="drop-ico" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+      </span>
+      <div class="drop-meta">
+        <span class="drop-name" data-name></span>
+        <span class="drop-size small muted" data-size></span>
+        <div class="drop-preview" data-preview></div>
+      </div>
+      <div class="drop-actions">
+        <button type="button" class="btn ghost" data-change>Trocar</button>
+        <button type="button" class="btn ghost" data-clear>Remover</button>
+      </div>
+    </div>
+  </div>
+  <p class="drop-error" id="{{ id }}-error" role="alert" hidden></p>
+</div>
+{% endmacro %}

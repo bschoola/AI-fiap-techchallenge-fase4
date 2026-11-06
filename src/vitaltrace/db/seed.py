@@ -10,7 +10,7 @@ import numpy as np
 
 from vitaltrace.audio.critical_terms import normalize
 from vitaltrace.anomaly.service import analyze_patient
-from vitaltrace.db import repos
+from vitaltrace.db import repos, seed_media
 from vitaltrace.db.orm import (
     AlertRow,
     Analysis,
@@ -120,6 +120,35 @@ _VIDEO_HISTORY = {
     "Thiago Marques Correia": [0.70, 0.74, 0.78],
     "Patrícia Gomes Barbosa": [0.60, 0.63, 0.66],
     "Helena Martins Duarte": [0.52, 0.48, 0.31],
+}
+
+
+# Gravações de áudio de exemplo: (paciente, minutos atrás, arquivo, KB, trechos (início, fim, texto)).
+# Helena usa os dois alertas de exemplo abaixo; as demais não passam dos limiares (sem alertas).
+_AUDIO_SAMPLES = [
+    ("Helena Martins Duarte", 2, "consulta_helena_manha.wav", 412, [
+        (0.5, 6.0, "Doutor, estou com muita falta de ar e uma dor no peito desde ontem."),
+        (7.0, 12.5, "Preciso parar para respirar a cada frase."),
+    ]),
+    ("Roberto Almeida Lima", 3 * 24 * 60, "retorno_roberto.wav", 388, [
+        (0.4, 5.5, "Doutor, dormi bem esta semana e sigo tomando os remédios nos horários."),
+        (6.5, 12.0, "A escada lá de casa está exigindo um pouco mais de mim."),
+    ]),
+    ("Antônio Carlos Medeiros", 6 * 24 * 60, "fonoterapia_antonio.wav", 540, [
+        (1.0, 5.0, "Bom dia, doutor. Estou fazendo os exercícios da fono todos os dias."),
+        (8.0, 13.0, "Sinto que as palavras saem mais devagar à tarde, mas sem piora."),
+        (16.0, 20.0, "Consigo me alimentar bem e dormir tranquilo."),
+    ]),
+    ("Paulo Roberto Araújo", 9 * 24 * 60, "retorno_paulo.wav", 366, [
+        (0.5, 6.0, "Doutor, uso a bombinha pela manhã e consigo caminhar até a padaria."),
+        (7.0, 12.0, "Tenho tossido um pouco menos do que no mês passado."),
+    ]),
+]
+
+# Sessões de vídeo anteriores (do mais antigo ao mais recente) e, nos casos abaixo, o evento da última.
+_LATEST_VIDEO_EVENT = {
+    "Helena Martins Duarte": ("Mobilidade reduzida", "Mobilidade 40% abaixo da média das sessões anteriores."),
+    "Antônio Carlos Medeiros": ("Mobilidade reduzida", "Mobilidade 30% abaixo da média das sessões anteriores."),
 }
 
 
@@ -350,24 +379,14 @@ def seed_database(db: Database, *, now: datetime | None = None) -> bool:
             special = _special_prescriptions(patient, now.date())
             s.add_all(special or _prescriptions(patient, drugs, now.date()))
 
-            for k, mobility in enumerate(_VIDEO_HISTORY.get(name, [])):
-                days_ago = 21 * (len(_VIDEO_HISTORY[name]) - k)
-                s.add(
-                    Analysis(
-                        patient_id=patient.id,
-                        kind="video",
-                        created_at=now - timedelta(days=days_ago),
-                        summary=f"Sessão anterior: índice de mobilidade {mobility:.2f}.",
-                        payload={"metrics": {"mobility_index": mobility}, "seeded": True},
-                    )
-                )
-
         s.flush()
         _seed_alerts(s, now)
         s.flush()
+        _seed_analyses(s, now)
+        s.flush()
         # Risco e alertas iniciais vêm dos próprios detectores, não de valores fixos
         for patient in s.query(Patient).all():
-            analyze_patient(s, patient, now=now)
+            analyze_patient(s, patient, save_report=False, now=now)
     return True
 
 
@@ -390,5 +409,68 @@ def _seed_alerts(s, now: datetime) -> None:
                 evidence={"seeded": True},
                 status="open",
                 created_at=now - timedelta(minutes=minutes_ago),
+            )
+        )
+
+
+def _seed_analyses(s, now: datetime) -> None:
+    """Áudios e vídeos de exemplo, para a linha do tempo mostrar o histórico logo na primeira execução."""
+    by_name = {p.name: p for p in s.query(Patient).all()}
+
+    for name, mobilities in _VIDEO_HISTORY.items():
+        for k, mobility in enumerate(mobilities):
+            latest = k == len(mobilities) - 1
+            events, frames = [], []
+            if latest and name in _LATEST_VIDEO_EVENT:
+                label, description = _LATEST_VIDEO_EVENT[name]
+                events = [{"type": "low_mobility", "severity": "medium", "t_start": 0.0, "t_end": 60.0, "description": description}]
+                frames = [{"t": 30.0, "label": label, "event_index": 0, "image": seed_media.synthetic_frame(label, 30)}]
+            elif latest:
+                frames = [{"t": 30.0, "label": "Quadro de exemplo", "event_index": None, "image": seed_media.synthetic_frame("Quadro de exemplo", 30)}]
+            s.add(
+                Analysis(
+                    patient_id=by_name[name].id,
+                    kind="video",
+                    created_at=now - timedelta(days=21 * (len(mobilities) - k)),
+                    summary=f"{len(events)} evento(s), mobilidade {mobility:.2f}.".replace(".", ",", 1),
+                    payload=seed_media.video_payload(
+                        mobility, filename=f"sessao_{k + 1}.mp4", events=events, keyframes=frames
+                    ),
+                )
+            )
+
+    # Vídeo recente da Sofia: é o que originou o alerta de exemplo de assimetria entre os joelhos
+    sofia = by_name["Sofia Carvalho Nunes"]
+    knee_event = {
+        "type": "knee_asymmetry", "severity": "medium", "t_start": 14.0, "t_end": 26.0,
+        "description": "Joelho direito flexiona 18° a menos que o esquerdo durante o agachamento.",
+    }  # fmt: skip
+    payload = seed_media.video_payload(
+        0.69, filename="agachamento_sofia.mp4", events=[knee_event], knee_diff=18.0,
+        keyframes=[{"t": 18.0, "label": "Assimetria entre os joelhos", "event_index": 0,
+                    "image": seed_media.synthetic_frame("Assimetria entre os joelhos", 18, knee_gap=18)}],
+    )  # fmt: skip
+    payload["alerts"] = [{"id": f"seed{2:028d}", "severity": "medium", "new": True,
+                          "title": "Assimetria entre os joelhos durante o agachamento"}]  # fmt: skip
+    s.add(Analysis(patient_id=sofia.id, kind="video", created_at=now - timedelta(minutes=62),
+                   summary="1 evento(s), mobilidade 0,69.", payload=payload))  # fmt: skip
+
+    helena_alerts = [
+        {"id": f"seed{0:028d}", "severity": "critical", "new": True, "title": "Termo crítico (respiratório): falta de ar"},
+        {"id": f"seed{1:028d}", "severity": "critical", "new": True, "title": "Termo crítico (cardiovascular): dor no peito"},
+    ]  # fmt: skip
+    for name, minutes_ago, filename, size_kb, segments in _AUDIO_SAMPLES:
+        payload = seed_media.audio_payload(segments, filename, size_kb)
+        if name.startswith("Helena"):
+            payload["alerts"] = helena_alerts
+        real = [t for t in payload["critical_terms"] if not t["negated"]]
+        s.add(
+            Analysis(
+                patient_id=by_name[name].id,
+                kind="audio",
+                created_at=now - timedelta(minutes=minutes_ago),
+                summary=f"{len(real)} termo(s) crítico(s), sentimento {payload['text_analysis']['sentiment']['label']}, "
+                f"{len(payload.get('alerts', []))} alerta(s) novo(s).",
+                payload=payload,
             )
         )

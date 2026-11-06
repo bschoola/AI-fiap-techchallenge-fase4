@@ -126,7 +126,7 @@ def test_add_consultation_and_validation(logged):
     )
     assert r.status_code == 303
     page = logged.get("/patients/4/evolution").text
-    assert "melhora completa da cefaleia" in page and "FC 73" in page
+    assert "melhora completa da cefaleia" in page and "<b>73</b>" in page
     # a última consulta passa a ser a nova
     assert "melhora completa" in logged.get("/patients/4").text
 
@@ -164,3 +164,11 @@ def test_logout(logged):
 def test_health(client):
     body = client.get("/health").json()
     assert body["status"] == "ok" and body["mock_azure"] is True and body["video"]
+
+
+def test_audio_and_video_pages_use_the_dropzone(logged):
+    for path, kind in (("/patients/1/audio", "audio"), ("/patients/1/video", "video")):
+        html = logged.get(path).text
+        assert 'data-drop' in html and f'data-kind="{kind}"' in html and "Arraste" in html
+        assert 'type="file"' in html and "/static/js/dropzone.js" in html
+    assert logged.get("/static/js/dropzone.js").status_code == 200

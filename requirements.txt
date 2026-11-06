@@ -18,6 +18,10 @@ pandas>=2.2
 scikit-learn>=1.5
 opencv-python-headless>=4.9
 
+# Vídeo por link do YouTube (opcional). O extra [default] traz o yt-dlp-ejs; o YouTube também
+# exige o runtime JavaScript Deno (já incluído no Docker; no Windows: winget install DenoLand.Deno).
+yt-dlp[default]>=2025.11.12
+
 # Azure AI Speech + Language
 azure-cognitiveservices-speech>=1.40
 azure-ai-textanalytics>=5.3.0

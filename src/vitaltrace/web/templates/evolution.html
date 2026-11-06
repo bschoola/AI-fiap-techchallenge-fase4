@@ -27,7 +27,22 @@
     <section class="card stack" style="gap:8px"><h2 style="font-size:18px;font-weight:800">Saturação de oxigênio (SpO₂)</h2>{{ spo2_chart }}</section>
     <section class="card stack" style="gap:8px"><h2 style="font-size:18px;font-weight:800">Frequência cardíaca</h2>{{ hr_chart }}</section>
   </div>
-  <p class="small muted" style="margin:-12px 0 0">Últimos 14 dias de aferições (dados sintéticos). Linhas amarelas marcam mudanças de dose; vermelhas, o limiar clínico.</p>
+  <div class="small muted chart-legend" style="margin:-12px 0 0">
+    <span>Últimos 14 dias de aferições (dados sintéticos).</span>
+    <span>Linhas amarelas: mudança de dose. Tracejado vermelho: limiar clínico.</span>
+    {% if has_events %}<span><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="#5B7C7D"/></svg>Áudio</span>
+    <span><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0.5 L13.5 7 L7 13.5 L0.5 7 Z" fill="#5B7C7D"/></svg>Vídeo</span>
+    <span>(a cor segue a gravidade; clique para ir à linha do tempo)</span>{% endif %}
+  </div>
+
+  <section class="card lg stack" style="gap:6px" aria-labelledby="tl-title">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
+      <div class="stack" style="gap:4px"><h2 id="tl-title" style="font-size:18px;font-weight:800">Linha do tempo do paciente</h2>
+        <span class="muted" style="font-size:14px">Consultas, gravações de áudio, vídeos e análises de IA em ordem cronológica. Abra um registro para ver o que foi analisado e o resultado.</span></div>
+      <a class="btn" href="#nova-consulta">Nova consulta</a>
+    </div>
+    <div id="timeline" style="margin-top:10px">{% include "_timeline.html" %}</div>
+  </section>
 
   <section class="card stack" style="gap:8px">
     <h2 style="font-size:18px;font-weight:800">Prescrições</h2>
@@ -40,31 +55,27 @@
     </tbody></table>
   </section>
 
-  <section class="cols" style="gap:24px">
-    <form class="card stack main" style="flex:1 1 420px" method="post" action="/patients/{{ patient.id }}/evolution">
-      <h2 style="font-size:18px;font-weight:800">Nova consulta (anamnese)</h2>
-      {% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
-      <div><label for="anamnesis">Anamnese</label>
-        <textarea id="anamnesis" name="anamnesis" rows="6" required placeholder="Queixa principal, evolução desde a última consulta, achados do exame…">{{ draft }}</textarea></div>
-      <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">
-        <div><label for="spo2">SpO₂ (%)</label><input id="spo2" name="spo2" type="text" inputmode="decimal"></div>
-        <div><label for="heart_rate">FC (bpm)</label><input id="heart_rate" name="heart_rate" type="text" inputmode="decimal"></div>
-        <div><label for="systolic">PA sistólica</label><input id="systolic" name="systolic" type="text" inputmode="decimal"></div>
-        <div><label for="diastolic">PA diastólica</label><input id="diastolic" name="diastolic" type="text" inputmode="decimal"></div>
-      </div>
-      <div><button class="btn primary" type="submit">Salvar consulta</button></div>
-    </form>
-
-    <section class="card side stack" id="historico" style="flex:1 1 420px;gap:0">
-      <h2 style="font-size:18px;font-weight:800;margin-bottom:8px">Histórico de consultas</h2>
-      {% for c in history %}
-      <div class="hist">
-        <div class="row" style="justify-content:space-between;gap:8px"><b>{{ c.occurred_at.strftime('%d/%m/%Y · %H:%M') }}</b><span class="small muted">{{ c.doctor.name if c.doctor else '' }}</span></div>
-        <p style="margin:0;line-height:1.55;color:#29484A">{{ c.anamnesis }}</p>
-        <span class="small muted">SpO₂ {{ c.spo2 | num }}{{ '%' if c.spo2 is not none }} · FC {{ c.heart_rate | num }} · PA {{ c.systolic | num }}/{{ c.diastolic | num }}</span>
-      </div>
-      {% else %}<p class="muted">Nenhuma consulta registrada.</p>{% endfor %}
-    </section>
-  </section>
+  <form class="card stack" id="nova-consulta" method="post" action="/patients/{{ patient.id }}/evolution" style="scroll-margin-top:84px">
+    <h2 style="font-size:18px;font-weight:800">Nova consulta (anamnese)</h2>
+    {% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
+    <div><label for="anamnesis">Anamnese</label>
+      <textarea id="anamnesis" name="anamnesis" rows="6" required placeholder="Queixa principal, evolução desde a última consulta, achados do exame…">{{ draft }}</textarea></div>
+    <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">
+      <div><label for="spo2">SpO₂ (%)</label><input id="spo2" name="spo2" type="text" inputmode="decimal"></div>
+      <div><label for="heart_rate">FC (bpm)</label><input id="heart_rate" name="heart_rate" type="text" inputmode="decimal"></div>
+      <div><label for="systolic">PA sistólica</label><input id="systolic" name="systolic" type="text" inputmode="decimal"></div>
+      <div><label for="diastolic">PA diastólica</label><input id="diastolic" name="diastolic" type="text" inputmode="decimal"></div>
+    </div>
+    <div><button class="btn primary" type="submit">Salvar consulta</button></div>
+  </form>
 </main>
+<script>
+  // Abre o registro da linha do tempo ao clicar no marcador do gráfico (ou ao chegar com #tl-...).
+  function openTimelineEntry() {
+    var el = location.hash.indexOf("#tl-") === 0 ? document.getElementById(location.hash.slice(1)) : null;
+    if (el && el.tagName === "DETAILS") { el.open = true; el.scrollIntoView({block: "start"}); }
+  }
+  window.addEventListener("hashchange", openTimelineEntry);
+  window.addEventListener("load", openTimelineEntry);
+</script>
 {% endblock %}

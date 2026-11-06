@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Analisar gravação — {{ patient.name }}{% endblock %}
 {% block content %}
+{% from "_dropzone.html" import dropzone %}
 <main class="wrap tight stack" style="gap:24px;max-width:960px">
   <nav><a class="crumb" href="/patients/{{ patient.id }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>{{ patient.name }}</a></nav>
   <div class="stack" style="gap:6px">
@@ -12,12 +13,11 @@
   {% if mock %}<div class="notice info">Modo simulado (<code>MOCK_AZURE=true</code>): o áudio enviado é ignorado e a transcrição é fixa. Use a transcrição colada para testar textos próprios.</div>{% endif %}
 
   <form class="card stack" hx-post="/patients/{{ patient.id }}/audio" hx-target="#result" hx-encoding="multipart/form-data" hx-indicator="#busy" hx-disabled-elt="find button">
+    {{ dropzone("file", "file", "Arquivo de áudio", "WAV, MP3, M4A, OGG ou FLAC", max_mb, "audio",
+                "audio/*,.wav,.mp3,.m4a,.ogg,.flac,.webm", ".wav,.mp3,.m4a,.ogg,.flac,.webm") }}
+    <div class="or" aria-hidden="true"><span>ou</span></div>
     <div>
-      <label for="file">Arquivo de áudio (WAV, MP3, M4A, OGG — até {{ max_mb }} MB)</label>
-      <input id="file" name="file" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac,.webm">
-    </div>
-    <div>
-      <label for="text">…ou cole uma transcrição</label>
+      <label for="text">Cole uma transcrição</label>
       <textarea id="text" name="text" rows="3" placeholder="Ex.: Doutor, estou com falta de ar e uma dor no peito desde ontem."></textarea>
     </div>
     <div class="row">
@@ -27,4 +27,5 @@
   </form>
   <div id="result" aria-live="polite"></div>
 </main>
+<script src="/static/js/dropzone.js" defer></script>
 {% endblock %}

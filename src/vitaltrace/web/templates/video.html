@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Análise de vídeo — {{ patient.name }}{% endblock %}
 {% block content %}
+{% from "_dropzone.html" import dropzone %}
 <main class="wrap tight stack" style="gap:24px;max-width:960px">
   <nav><a class="crumb" href="/patients/{{ patient.id }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>{{ patient.name }}</a></nav>
   <div class="stack" style="gap:6px">
@@ -14,15 +15,23 @@
   {% endif %}
 
   <form class="card stack" hx-post="/patients/{{ patient.id }}/video" hx-target="#result" hx-encoding="multipart/form-data" hx-indicator="#busy" hx-disabled-elt="find button">
+    {{ dropzone("file", "file", "Arquivo de vídeo", "MP4, AVI, MOV, MKV ou WebM", max_mb, "video",
+                "video/*,.mp4,.avi,.mov,.mkv,.webm", ".mp4,.avi,.mov,.mkv,.webm,.m4v") }}
+    {% if youtube_ok %}
+    <div class="or" aria-hidden="true"><span>ou</span></div>
     <div>
-      <label for="file">Arquivo de vídeo (MP4, AVI, MOV, MKV ou WebM — até {{ max_mb }} MB)</label>
-      <input id="file" name="file" type="file" accept="video/*,.mp4,.avi,.mov,.mkv,.webm" required>
+      <label for="url">Link do YouTube</label>
+      <input id="url" name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false"
+             placeholder="https://www.youtube.com/watch?v=…" aria-describedby="url-hint">
+      <p id="url-hint" class="small muted" style="margin:8px 0 0">Baixamos só os primeiros {{ max_seconds }} s, em baixa resolução, e o vídeo não é guardado. Use apenas vídeos públicos, para demonstração. Funciona melhor com câmera parada e uma pessoa em cena.</p>
     </div>
+    {% endif %}
     <div class="row">
       <button class="btn primary" type="submit" {{ 'disabled' if video_error }}>Analisar vídeo</button>
-      <span id="busy" class="htmx-indicator row small muted" style="gap:8px" role="status"><span class="spinner"></span>Analisando quadros… pode levar até um minuto em CPU.</span>
+      <span id="busy" class="htmx-indicator row small muted" style="gap:8px" role="status"><span class="spinner"></span>Baixando (se for link) e analisando quadros… pode levar até um minuto em CPU.</span>
     </div>
   </form>
   <div id="result" aria-live="polite"></div>
 </main>
+<script src="/static/js/dropzone.js" defer></script>
 {% endblock %}

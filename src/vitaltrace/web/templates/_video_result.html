@@ -4,6 +4,7 @@
       <h2 style="font-size:18px;font-weight:800">Resultado</h2>
       <span class="badge {{ risk.level }}">Risco do paciente: {{ risk.level | risk }} · {{ risk.score | num }}/100</span>
     </div>
+    {% if source %}<p class="small muted" style="margin:0">Origem: {% if source.get('type') == 'youtube' %}vídeo do YouTube <b>{{ source.title }}</b> (primeiros {{ source.clip_seconds }} s){% else %}arquivo <b>{{ source.filename }}</b>{% endif %}.</p>{% endif %}
     <div class="kpis">
       <div class="kpi"><span>Duração analisada</span><b>{{ analysis.metrics.duration_s | num }} s</b></div>
       <div class="kpi"><span>Pessoa visível</span><b>{{ (analysis.metrics.person_detected_ratio * 100) | num }}%</b></div>
@@ -17,7 +18,7 @@
   {% if analysis.keyframes %}
   <section class="card stack" style="gap:12px">
     <h2 style="font-size:18px;font-weight:800">Quadros-chave</h2>
-    <div class="keyframes">{% for img in analysis.keyframes %}<img src="{{ img }}" alt="Quadro {{ loop.index }} do vídeo com a detecção da pessoa destacada">{% endfor %}</div>
+    <div class="keyframes">{% for k in analysis.keyframes %}<figure class="kf"><img src="{{ k.image }}" alt="Quadro {{ loop.index }} do vídeo ({{ k.label }}, {{ k.t | round(0) | int }} s) com a detecção da pessoa destacada"><figcaption class="small muted">{{ k.label }} · {{ k.t | round(0) | int }} s</figcaption></figure>{% endfor %}</div>
   </section>
   {% endif %}
 

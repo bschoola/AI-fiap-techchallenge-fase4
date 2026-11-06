@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     yolo_pose_weights: str = "yolov8n-pose.pt"
     video_sample_fps: float = 2.0
     video_max_seconds: int = 120
+    # Link do YouTube na análise de vídeo (precisa do yt-dlp e, para o YouTube, do runtime Deno)
+    youtube_enabled: bool = True
 
     # Limiares das heurísticas de áudio. São pontos de partida: ajuste com dados reais.
     negative_sentiment_threshold: float = 0.6

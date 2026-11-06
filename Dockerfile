@@ -10,6 +10,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg libasound2 libssl3 ca-certificates libglib2.0-0 libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Deno: runtime JavaScript que o yt-dlp exige para baixar do YouTube (binário oficial, ~100 MB)
+COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
+
 WORKDIR /app
 COPY requirements.txt requirements-video.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

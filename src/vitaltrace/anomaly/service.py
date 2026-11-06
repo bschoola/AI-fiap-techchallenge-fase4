@@ -71,8 +71,15 @@ def alerts_from_findings(patient_id: int, findings: list[Finding]) -> list[Alert
 
 
 def analyze_patient(
-    s: Session, patient: Patient, *, persist: bool = True, now: datetime | None = None
+    s: Session,
+    patient: Patient,
+    *,
+    persist: bool = True,
+    save_report: bool = True,
+    now: datetime | None = None,
 ) -> AnomalyReport:
+    """`save_report=False` atualiza risco e alertas sem criar uma entrada "anomaly" na linha do tempo
+    (usado após áudio/vídeo, que já registram o próprio resultado)."""
     findings = collect_findings(s, patient, now)
     risk = compute_risk(findings)
     summary = build_summary(patient.name, risk, findings)
@@ -81,14 +88,16 @@ def analyze_patient(
         created = repos.add_alerts(s, alerts_from_findings(patient.id, findings))
         report.new_alerts = len(created)
         repos.update_risk(s, patient, risk.level, risk.score)
-        repos.save_analysis(
-            s,
-            patient.id,
-            "anomaly",
-            summary,
-            {
-                "risk": {"score": risk.score, "level": risk.level, "by_source": risk.by_source},
-                "findings": [f.model_dump(mode="json") for f in findings],
-            },
-        )
+        if save_report:
+            repos.save_analysis(
+                s,
+                patient.id,
+                "anomaly",
+                summary,
+                {
+                    "risk": {"score": risk.score, "level": risk.level, "by_source": risk.by_source},
+                    "findings": [f.model_dump(mode="json") for f in findings],
+                    "new_alerts": report.new_alerts,
+                },
+            )
     return report

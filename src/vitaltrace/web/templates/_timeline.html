@@ -1,0 +1,9 @@
+{# Bloco completo da linha do tempo: filtros + itens (trocado inteiro quando o filtro muda). #}
+<div class="tl-filters" role="tablist" aria-label="Filtrar a linha do tempo">
+  {% for k, label in kinds.items() %}
+  <button type="button" role="tab" class="tl-tab{{ ' on' if page.kind == k }}" aria-selected="{{ 'true' if page.kind == k else 'false' }}"
+    hx-get="/patients/{{ patient.id }}/timeline?kind={{ k }}" hx-target="#timeline" hx-swap="innerHTML">{{ label }}</button>
+  {% endfor %}
+  <span class="small muted" style="margin-left:auto">{{ page.total }} registro{{ 's' if page.total != 1 }}</span>
+</div>
+{% include "_timeline_items.html" %}
