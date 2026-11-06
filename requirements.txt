@@ -1,9 +1,23 @@
+# Portal web
 fastapi>=0.115
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
+jinja2>=3.1
+itsdangerous>=2.2          # exigido pelo SessionMiddleware (cookie de sessão)
 pydantic>=2.7
 pydantic-settings>=2.3
+requests>=2.32
+
+# Banco de dados (Postgres no Docker; SQLite no desenvolvimento e nos testes)
+sqlalchemy>=2.0
+psycopg[binary]>=3.2
+
+# Detecção de anomalias e análise de vídeo (plano B com OpenCV, em CPU)
+numpy>=1.26
+pandas>=2.2
+scikit-learn>=1.5
+opencv-python-headless>=4.9
+
+# Azure AI Speech + Language
 azure-cognitiveservices-speech>=1.40
 azure-ai-textanalytics>=5.3.0
-streamlit>=1.40
-requests>=2.32

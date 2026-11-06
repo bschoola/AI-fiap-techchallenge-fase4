@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # ffmpeg: normaliza áudios; libasound2/libssl3: exigidos pelo SDK do Azure Speech;
 # libgl1/libglib2.0-0: dependências de runtime do OpenCV
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libasound2 libssl3 ca-certificates libglib2.0-0 \
+    && apt-get install -y --no-install-recommends ffmpeg libasound2 libssl3 ca-certificates libglib2.0-0 libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
