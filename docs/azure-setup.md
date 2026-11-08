@@ -102,6 +102,30 @@ az cognitiveservices account show      -n lang-tc4-bruno   -g rg-techchallenge-f
 - Terminada a entrega, apague tudo de uma vez: `az group delete -n rg-techchallenge-fase4` (ou pelo portal).
 - Compartilhe a chave com o grupo por um canal privado; ou cada integrante cria o seu recurso F0.
 
+## Azure OpenAI (opcional): áudios de demonstração mais naturais
+
+Usado **só** por `scripts/generate_consulta_audio.py`, para gerar as três consultas de exemplo (normal, falta de ar, dor no peito). A aplicação em si não depende dele. Cada áudio sai numa **tomada única**: a respiração, as hesitações e a emoção vêm do próprio modelo, sem colar trechos.
+
+Modelo recomendado: **`gpt-audio`** (ou **`gpt-audio-mini`**, mais barato). Não é um TTS simples: é um modelo de áudio completo, que recebe a direção da cena ("voz fraca, puxando o ar entre as frases") e interpreta o texto. Ele é usado pela API de *chat completions* com saída de áudio.
+
+1. No portal Azure, **Create a resource** → **Azure OpenAI** → *Create*. Mesmo grupo de recursos; região **East US 2** (ou outra que liste o modelo na tabela de disponibilidade); preço **Standard S0**.
+2. Abra o recurso → **Go to Microsoft Foundry** → *Deployments* → **Deploy model** → **gpt-audio** (ou **gpt-audio-mini**) → tipo **Global Standard**. Em *Deployment name* use o mesmo valor do `.env`.
+3. Copie **KEY 1** e o **Endpoint** em *Keys and Endpoint*.
+4. No `.env`:
+   ```
+   AZURE_OPENAI_ENDPOINT=https://SEU-RECURSO.openai.azure.com/
+   AZURE_OPENAI_KEY=<KEY 1>
+   AZURE_OPENAI_AUDIO_DEPLOYMENT=gpt-audio
+   AZURE_OPENAI_API_VERSION=2025-04-01-preview
+   ```
+5. Rode `python scripts/generate_consulta_audio.py`. Voz padrão `marin`; teste `--voice cedar`, `coral` ou `sage`. Para refazer só um áudio: `--only normal` (ou `falta_de_ar`, `dor_no_peito`).
+
+O `gpt-audio` às vezes muda uma palavra do roteiro. O script compara a transcrição devolvida com o texto e repete a geração (até `--tries`, padrão 3) quando a fidelidade fica abaixo de 90%.
+
+Outros motores: `--engine tts` usa o endpoint `/audio/speech` (`AZURE_OPENAI_TTS_DEPLOYMENT`: `gpt-4o-mini-tts`, `tts-hd` ou `tts`; só o primeiro aceita direção de interpretação). `--engine speech` usa o Azure AI Speech com a voz HD `pt-BR-Thalita:DragonHDLatestNeural`, sem Azure OpenAI.
+
+Erros comuns: `404` = nome do deployment diferente do `.env`; `400` mencionando `modalities` ou `audio` = o deployment não é um modelo de áudio, ou a `AZURE_OPENAI_API_VERSION` é antiga demais; `401` = chave/endpoint de outro recurso; `429` = cota, o script espera e tenta de novo. Custo: alguns centavos pelos três áudios; apague o recurso ao terminar.
+
 ## Problemas comuns
 
 | Sintoma | Causa provável |

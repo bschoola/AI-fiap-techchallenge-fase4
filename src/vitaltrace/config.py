@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     azure_language_key: str = ""
     azure_language_endpoint: str = ""
 
+    # Azure OpenAI (opcional): só o gerador de áudios de demonstração usa
+    azure_openai_endpoint: str = ""
+    azure_openai_key: str = ""
+    azure_openai_audio_deployment: str = "gpt-audio"  # chat completions com saída de áudio (recomendado)
+    azure_openai_tts_deployment: str = "gpt-4o-mini-tts"  # /audio/speech (gpt-4o-mini-tts, tts-hd, tts)
+    azure_openai_api_version: str = "2025-04-01-preview"
+
     # True = usa serviços simulados, sem chamar o Azure (dev/testes)
     mock_azure: bool = False
 
