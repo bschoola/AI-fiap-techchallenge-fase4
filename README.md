@@ -53,6 +53,25 @@ Só quatro partes usam aprendizado de máquina; o restante é regra ou estatíst
 | Risco de 0 a 100 | **Pontuação por regra**: pontos por severidade, teto por modalidade e correlações entre elas. |
 | Resumo textual | **Texto montado por regra**, não gerado por LLM. O botão "Análise de anomalias com IA" usa essa combinação, não um modelo de linguagem. |
 
+
+### Análise detalhada de um único vídeo
+
+Não precisa de histórico do paciente: o vídeo é examinado por dentro. Na tela de vídeo, **Detalhada** (padrão, 5 quadros/s, `VIDEO_DETAIL_FPS`) ou **Rápida** (2 quadros/s, só os eventos básicos).
+
+| Etapa / achado | Como funciona | Gravidade |
+|---|---|---|
+| Cortes de cena | histograma de cinza + miniatura; velocidade e queda nunca atravessam um corte | aviso de qualidade |
+| Pessoa principal | maior confiança × área, com preferência por quem já vinha sendo seguido | — |
+| Suavização | mediana móvel de 3 quadros nas coordenadas, por trecho | — |
+| Tronco inclinado | > 20° da vertical por ≥ 5 s seguidos | baixa (≥ 30°: média) |
+| Ombros / quadril desalinhados | mediana > 8° (só visão frontal) | baixa (≥ 14°: média) |
+| Oscilação postural | desvio lateral do quadril > 0,10 do tronco, parado em pé ≥ 6 s | baixa (≥ 0,20: média) |
+| Assimetria de amplitude | amplitude (p95–p5) de um lado < 65% do outro (joelhos, cotovelos) | baixa (< 50%: média) |
+| Ritmo irregular | variação (CV) da duração das repetições > 35%, ≥ 4 repetições | baixa (> 60%: média) |
+| Fadiga | amplitude do último terço ≥ 25% menor que a do primeiro, ≥ 6 repetições | baixa (≥ 30%: média) |
+
+Achados de gravidade **média ou alta geram alerta** no painel da equipe; os de baixa aparecem no resultado e na linha do tempo. Cada análise guarda um **relatório de qualidade** (cortes, pose utilizável, mais de uma pessoa, vídeo curto, sem repetições) e a **curva de ângulo** da articulação mais ativa. Limitações: ângulos 2D de uma câmera só, sem calibração, não validados clinicamente; inclinação de câmera e visão lateral afetam ombros/quadril; em exercícios, inclinar o tronco pode ser o movimento esperado. É apoio à revisão humana, não diagnóstico.
+
 ## Como rodar
 
 ### Opção A — Docker (Postgres + portal)

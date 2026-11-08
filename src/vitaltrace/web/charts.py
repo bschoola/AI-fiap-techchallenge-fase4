@@ -92,3 +92,42 @@ def _event_marker(ev: dict, xx: float, yy: float, y_top: float, y_bottom: float)
         f'<line x1="{xx:.1f}" x2="{xx:.1f}" y1="{y_top}" y2="{y_bottom}" stroke="{color}" stroke-width="1" stroke-dasharray="2 3" opacity=".55"/>'
         f'{shape} fill="{color}" stroke="#fff" stroke-width="2"/></a>'
     )
+
+
+def angle_curve(curve: dict | None, width: int = 640, height: int = 210) -> Markup:
+    """Curva do ângulo da articulação mais ativa ao longo do vídeo, com as repetições marcadas."""
+    pts = (curve or {}).get("points") or []
+    if len(pts) < 3:
+        return Markup("")
+    left, right, top, bottom = 44, 12, 14, 30
+    pw, ph = width - left - right, height - top - bottom
+    t0, t1 = pts[0][0], max(pts[-1][0], pts[0][0] + 1)
+    lo = max(0, min(p[1] for p in pts) - 10)
+    hi = min(190, max(p[1] for p in pts) + 10)
+
+    def x(t: float) -> float:
+        return left + pw * (t - t0) / (t1 - t0)
+
+    def y(a: float) -> float:
+        return top + ph * (1 - (a - lo) / max(hi - lo, 1))
+
+    joint = escape(str(curve.get("joint", "articulação")))
+    reps = curve.get("reps") or []
+    parts = [
+        f'<svg viewBox="0 0 {width} {height}" role="img" class="chart" aria-label="Ângulo do {joint} ao longo do vídeo, '
+        f'{len(reps)} repetição(ões) marcadas">',
+        f'<rect x="{left}" y="{top}" width="{pw}" height="{ph}" fill="none" stroke="{GRID}"/>',
+    ]
+    for a in (lo, (lo + hi) / 2, hi):
+        parts.append(f'<text x="{left - 6}" y="{y(a) + 4:.0f}" text-anchor="end" font-size="11" fill="{MUTED}">{a:.0f}°</text>')
+    for t in (t0, (t0 + t1) / 2, t1):
+        parts.append(f'<text x="{x(t):.0f}" y="{height - 10}" text-anchor="middle" font-size="11" fill="{MUTED}">{t:.0f} s</text>')
+    line = " ".join(f"{x(t):.1f},{y(a):.1f}" for t, a in pts)
+    parts.append(f'<polyline points="{line}" fill="none" stroke="{TEAL}" stroke-width="2" stroke-linejoin="round"/>')
+    values = {round(p[0], 1): p[1] for p in pts}
+    for t in reps:
+        a = values.get(round(t, 1))
+        if a is not None:
+            parts.append(f'<circle cx="{x(t):.1f}" cy="{y(a):.1f}" r="4" fill="{AMBER}" stroke="#fff" stroke-width="1.5"/>')
+    parts.append("</svg>")
+    return Markup("".join(parts))

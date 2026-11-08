@@ -116,6 +116,7 @@
         </div>
         {% else %}<p class="muted" style="margin:0">Sem quadros-chave guardados para esta análise.</p>{% endif %}
       </section>
+      {% set vd = p %}{% include "_video_detail.html" %}
       <section class="tl-sec"><h3>Resultado</h3>
         <div class="kpis">
           <div class="kpi"><span>Índice de mobilidade</span><b>{{ m.get('mobility_index') | num(2) }}</b></div>

@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     yolo_pose_weights: str = "yolov8n-pose.pt"
     video_sample_fps: float = 2.0
     video_max_seconds: int = 120
+    video_detail_fps: float = 5.0  # amostragem do modo "Detalhada"
     # Link do YouTube na análise de vídeo (precisa do yt-dlp e, para o YouTube, do runtime Deno)
     youtube_enabled: bool = True
 

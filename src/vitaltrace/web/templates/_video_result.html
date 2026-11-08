@@ -15,6 +15,14 @@
     {% if previous %}<p class="small muted" style="margin:0">Sessões anteriores (da mais recente para a mais antiga): {% for p in previous %}{{ p | num(2) }}{{ ' · ' if not loop.last }}{% endfor %}.</p>{% endif %}
   </section>
 
+  {% set vd = analysis.payload() %}
+  {% if vd.quality.warnings or vd.joints or vd.curve or vd.quality.depth == 'detailed' %}
+  <section class="card stack" style="gap:14px">
+    <h2 style="font-size:18px;font-weight:800">Detalhes da análise</h2>
+    {% include "_video_detail.html" %}
+  </section>
+  {% endif %}
+
   {% if analysis.keyframes %}
   <section class="card stack" style="gap:12px">
     <h2 style="font-size:18px;font-weight:800">Quadros-chave</h2>

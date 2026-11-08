@@ -172,3 +172,11 @@ def test_audio_and_video_pages_use_the_dropzone(logged):
         assert 'data-drop' in html and f'data-kind="{kind}"' in html and "Arraste" in html
         assert 'type="file"' in html and "/static/js/dropzone.js" in html
     assert logged.get("/static/js/dropzone.js").status_code == 200
+
+
+def test_video_page_has_depth_selector_and_result_shows_details(logged, tmp_path):
+    assert 'name="depth"' in logged.get("/patients/3/video").text
+    path = write_video(tmp_path / "anda.avi", [("empty", 2), ("walk", 12)])
+    with path.open("rb") as f:
+        r = logged.post("/patients/3/video", files={"file": ("anda.avi", f, "video/x-msvideo")}, data={"depth": "detailed"})
+    assert r.status_code == 200 and "Detalhes da análise" in r.text and "Análise detalhada" in r.text

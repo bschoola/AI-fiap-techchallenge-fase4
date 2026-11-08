@@ -10,7 +10,7 @@
   </div>
 
   {% if video_error %}<div class="notice err" role="alert">{{ video_error }}</div>{% else %}
-  <div class="notice info">Motor: <b>{{ backend }}</b>, em CPU. Analisa até {{ max_seconds }} s do vídeo, 2 quadros por segundo.
+  <div class="notice info">Motor: <b>{{ backend }}</b>, em CPU. Analisa até {{ max_seconds }} s do vídeo.
     {% if 'OpenCV' in backend %}Para usar pose (esqueleto e ângulos de joelho), instale o YOLOv8: <code>pip install -r requirements-video.txt</code>.{% endif %}</div>
   {% endif %}
 
@@ -26,6 +26,13 @@
       <p id="url-hint" class="small muted" style="margin:8px 0 0">Baixamos só os primeiros {{ max_seconds }} s, em baixa resolução, e o vídeo não é guardado. Use apenas vídeos públicos, para demonstração. Funciona melhor com câmera parada e uma pessoa em cena.</p>
     </div>
     {% endif %}
+    <fieldset class="depth">
+      <legend>Profundidade da análise</legend>
+      <label class="depth-opt"><input type="radio" name="depth" value="detailed" checked>
+        <span><b>Detalhada</b> <span class="muted small">(recomendada) · 5 quadros/s, procura anomalias no próprio vídeo: tronco, ombros/quadril, equilíbrio, amplitude, ritmo e fadiga. Mais lenta em CPU.</span></span></label>
+      <label class="depth-opt"><input type="radio" name="depth" value="fast">
+        <span><b>Rápida</b> <span class="muted small">· 2 quadros/s, só queda, imobilidade, mobilidade e simetria dos joelhos.</span></span></label>
+    </fieldset>
     <div class="row">
       <button class="btn primary" type="submit" {{ 'disabled' if video_error }}>Analisar vídeo</button>
       <span id="busy" class="htmx-indicator row small muted" style="gap:8px" role="status"><span class="spinner"></span>Baixando (se for link) e analisando quadros… pode levar até um minuto em CPU.</span>

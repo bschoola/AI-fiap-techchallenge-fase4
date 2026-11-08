@@ -174,7 +174,7 @@ def _youtube_enabled(svc) -> bool:
 
 @router.post("/{patient_id}/video")
 def video_analyze(
-    patient_id: int, request: Request, file: UploadFile | None = File(None), url: str = Form(""),
+    patient_id: int, request: Request, file: UploadFile | None = File(None), url: str = Form(""), depth: str = Form("detailed"),
     doctor: Doctor = Depends(require_doctor), db: Session = Depends(get_db),
 ):  # fmt: skip
     patient = patient_or_404(db, patient_id)
@@ -218,7 +218,7 @@ def video_analyze(
                 "size_mb": clip.size_mb, "clip_seconds": round(clip.seconds),
             }  # fmt: skip
         try:
-            analysis = svc.video.analyze(src)
+            analysis = svc.video.analyze(src, depth)
         except VideoError as exc:
             return _error(request, str(exc), 422)
 

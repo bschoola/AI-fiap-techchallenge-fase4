@@ -46,6 +46,9 @@ def _ago(dt: datetime) -> str:
     return f"há {minutes // (24 * 60)} d"
 
 
+from vitaltrace.web.charts import angle_curve  # noqa: E402
+
+
 def make_templates() -> Jinja2Templates:
     templates = Jinja2Templates(directory=str(BASE / "templates"))
     env = templates.env
@@ -55,6 +58,7 @@ def make_templates() -> Jinja2Templates:
         risk=lambda s: RISK_LABELS.get(s, str(s).upper()),
         source=lambda s: SOURCE_LABELS.get(s, s),
         sex=lambda s: "Feminino" if s == "F" else "Masculino",
+        angle_curve=angle_curve,
         num=lambda v, nd=0: "—" if v is None else f"{v:.{nd}f}".replace(".", ","),
     )  # fmt: skip
     return templates

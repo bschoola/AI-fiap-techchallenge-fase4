@@ -9,6 +9,13 @@ _TYPE_LABELS = {
     "knee_asymmetry": "Assimetria entre os joelhos",
     "low_mobility": "Mobilidade reduzida",
     "no_person": "Pessoa pouco visível",
+    "trunk_lean": "Tronco inclinado",
+    "shoulder_tilt": "Ombros desalinhados",
+    "hip_tilt": "Quadril desalinhado",
+    "postural_sway": "Oscilação postural",
+    "rom_asymmetry": "Assimetria de amplitude",
+    "rep_irregular": "Ritmo irregular das repetições",
+    "rep_fatigue": "Queda de amplitude (fadiga)",
 }
 _POSTURES = {"standing": "em pé", "sitting": "sentado", "lying": "deitado", "upright": "na vertical"}
 
@@ -17,7 +24,7 @@ def type_label(event_type: str) -> str:
     return _TYPE_LABELS.get(event_type, event_type)
 
 
-def build_report(metrics: VideoMetrics, events: list[VideoEvent], backend: str) -> str:
+def build_report(metrics: VideoMetrics, events: list[VideoEvent], backend: str, quality=None, joints=None) -> str:
     lines = [
         f"Vídeo de {metrics.duration_s:.0f} s analisado com {backend}: "
         f"{metrics.frames_analyzed} quadros amostrados, pessoa visível em "
@@ -28,6 +35,13 @@ def build_report(metrics: VideoMetrics, events: list[VideoEvent], backend: str) 
         lines.append("Posturas: " + ", ".join(parts) + ".")
     if metrics.mobility_index is not None:
         lines.append(f"Índice de mobilidade: {metrics.mobility_index:.2f} (0 = parado, 1 = muito ativo).")
+    if joints:
+        lines.append("Amplitude de movimento: " + ", ".join(f"{k} {v}°" for k, v in joints.items()) + ".")
+    if quality is not None:
+        if quality.depth == "detailed":
+            lines.append(f"Análise detalhada ({quality.sample_fps:g} quadros/s; {quality.cuts} corte(s) de cena).")
+        for w in quality.warnings:
+            lines.append(f"Atenção: {w}")
     if not events:
         lines.append("Nenhum desvio detectado nesta gravação.")
     else:

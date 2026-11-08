@@ -90,3 +90,47 @@ def knee_angles(obs: PersonObservation) -> tuple[float, float] | None:
     left = _angle(pts[L_HIP], pts[L_KNEE], pts[L_ANKLE])
     right = _angle(pts[R_HIP], pts[R_KNEE], pts[R_ANKLE])
     return left, right
+
+
+def joint_angle(obs: PersonObservation, a: int, b: int, c: int) -> float | None:
+    """Ângulo em `b` formado por a–b–c (2D, em graus), se os três pontos são confiáveis."""
+    pa, pb, pc = _pt(obs, a), _pt(obs, b), _pt(obs, c)
+    if pa is None or pb is None or pc is None:
+        return None
+    return _angle(pa, pb, pc)
+
+
+def torso_length(obs: PersonObservation) -> float | None:
+    shoulders = _mid(_pt(obs, L_SHOULDER), _pt(obs, R_SHOULDER))
+    hips = _mid(_pt(obs, L_HIP), _pt(obs, R_HIP))
+    if shoulders is None or hips is None:
+        return None
+    length = float(np.linalg.norm(hips - shoulders))
+    return length if length > 1 else None
+
+
+def trunk_lean_deg(obs: PersonObservation) -> float | None:
+    """Inclinação do tronco em relação à vertical da imagem (0° = reto)."""
+    shoulders = _mid(_pt(obs, L_SHOULDER), _pt(obs, R_SHOULDER))
+    hips = _mid(_pt(obs, L_HIP), _pt(obs, R_HIP))
+    if shoulders is None or hips is None or torso_length(obs) is None:
+        return None
+    d = hips - shoulders
+    return math.degrees(math.atan2(abs(d[0]), abs(d[1]) + 1e-6))
+
+
+def line_tilt_deg(obs: PersonObservation, left: int, right: int) -> float | None:
+    """Inclinação da linha entre dois pontos simétricos (ombros ou quadris) em relação à horizontal.
+
+    Só é confiável de frente/costas: se a linha é curta perto do tronco (visão lateral), devolve None."""
+    a, b, torso = _pt(obs, left), _pt(obs, right), torso_length(obs)
+    if a is None or b is None or torso is None:
+        return None
+    d = b - a
+    if float(np.linalg.norm(d)) < 0.25 * torso:
+        return None
+    return math.degrees(math.atan2(abs(d[1]), abs(d[0]) + 1e-6))
+
+
+def hip_center(obs: PersonObservation) -> np.ndarray | None:
+    return _mid(_pt(obs, L_HIP), _pt(obs, R_HIP))

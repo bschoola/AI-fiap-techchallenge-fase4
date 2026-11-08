@@ -1,0 +1,20 @@
+{# Qualidade da análise, amplitude de movimento e curva de repetições. Espera `vd` (payload da análise de vídeo). #}
+{% set q = vd.get('quality') or {} %}
+{% set joints = vd.get('joints') or {} %}
+{% set curve = vd.get('curve') %}
+{% if q.get('depth') == 'detailed' or q.get('warnings') %}
+<section class="tl-sec"><h3>Qualidade da análise</h3>
+  <p class="small muted" style="margin:0">{% if q.get('depth') == 'detailed' %}Análise detalhada, {{ q.get('sample_fps') | num(0) }} quadros por segundo{% else %}Análise rápida, {{ q.get('sample_fps') | num(0) }} quadros por segundo{% endif %}
+    · {{ q.get('cuts') or 0 }} corte(s) de cena{% if q.get('keypoint_ratio') is not none %} · esqueleto utilizável em {{ ((q.get('keypoint_ratio') or 0) * 100) | num }}% dos quadros{% endif %}.</p>
+  {% for w in q.get('warnings') or [] %}<div class="notice info" style="margin-top:8px">{{ w }}</div>{% endfor %}
+</section>
+{% endif %}
+{% if joints %}
+<section class="tl-sec"><h3>Amplitude de movimento (2D)</h3>
+  <div class="kpis">{% for name, rom in joints.items() %}<div class="kpi"><span>{{ name | capitalize }}</span><b>{{ rom }}°</b></div>{% endfor %}</div>
+  {% if curve and curve.get('points') %}
+  <p class="small muted" style="margin:10px 0 4px">Ângulo do {{ curve.joint }} ao longo do vídeo · {{ curve.get('n_reps') or 0 }} repetição(ões) (pontos amarelos){% if curve.get('cv') is not none %} · variação do ritmo {{ ((curve.cv) * 100) | num }}%{% endif %}{% if curve.get('amp_drop') is not none %} · variação de amplitude início→fim {{ ((curve.amp_drop) * 100) | num }}%{% endif %}</p>
+  {{ curve | angle_curve }}
+  {% endif %}
+</section>
+{% endif %}

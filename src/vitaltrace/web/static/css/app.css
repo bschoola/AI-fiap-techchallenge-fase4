@@ -169,3 +169,9 @@ table.t th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spa
 .or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
 @media (prefers-reduced-motion:reduce){.drop-area{transition:none}}
+
+/* seletor de profundidade da análise de vídeo */
+.depth{border:1px solid var(--line,#E1EAEA);border-radius:12px;padding:12px 14px;margin:0;display:grid;gap:10px}
+.depth legend{font-weight:700;font-size:14px;padding:0 6px}
+.depth-opt{display:flex;gap:10px;align-items:flex-start;cursor:pointer;line-height:1.45}
+.depth-opt input{margin-top:4px;accent-color:#0F766E}

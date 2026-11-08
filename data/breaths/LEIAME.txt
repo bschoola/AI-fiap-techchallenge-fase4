@@ -1,0 +1,1 @@
+Coloque aqui respirações reais (.wav, 16 bits, 0,5 a 2 s cada, só respiração, sem voz).

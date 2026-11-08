@@ -14,16 +14,19 @@ IMMOBILE_MIN_S = 10.0
 MOBILITY_REFERENCE = 0.5  # movimento (alturas/s) que equivale a índice 1,0
 KNEE_DIFF_LIMIT_DEG = 15.0
 LOW_MOBILITY_INDEX = 0.2
+MOTION_DT_S = 0.45  # velocidade medida em janelas de ≥ 0,45 s: com mais quadros/s o tremor da pose não vira "movimento"
 
 
-def _detect_falls(obs: list[PersonObservation], postures: list[str], end_t: float) -> list[VideoEvent]:
+def _detect_falls(
+    obs: list[PersonObservation], postures: list[str], end_t: float, segs: list[int]
+) -> list[VideoEvent]:
     events: list[VideoEvent] = []
     skip_until = -1.0
     for i in range(1, len(obs)):
         if obs[i].t <= skip_until or postures[i] != "lying":
             continue
         recent_upright = any(
-            pose.is_upright(postures[j]) for j in range(i) if obs[i].t - obs[j].t <= FALL_WINDOW_S
+            pose.is_upright(postures[j]) for j in range(i) if obs[i].t - obs[j].t <= FALL_WINDOW_S and segs[j] == segs[i]  # um corte de cena não é queda
         )
         if not recent_upright:
             continue
@@ -92,10 +95,28 @@ def _detect_immobility(
     return events, total
 
 
+def _motions(detected: list[PersonObservation], segs: list[int]) -> list[float]:
+    """Velocidade de cada observação (a partir da 2ª) contra uma anterior ≥ MOTION_DT_S antes; NaN entre cortes."""
+    out, j = [], 0
+    for k in range(1, len(detected)):
+        while j + 1 < k and detected[k].t - detected[j + 1].t >= MOTION_DT_S:
+            j += 1
+        ref = j if detected[k].t - detected[j].t >= MOTION_DT_S and segs[j] == segs[k] else k - 1
+        out.append(pose.motion_per_second(detected[ref], detected[k]) if segs[ref] == segs[k] else float("nan"))
+    return out
+
+
 def analyze_observations(
-    observations: list[PersonObservation | None], times: list[float], duration_s: float
+    observations: list[PersonObservation | None],
+    times: list[float],
+    duration_s: float,
+    segments: list[int] | None = None,
 ) -> tuple[VideoMetrics, list[VideoEvent]]:
-    """`observations` tem um item por quadro amostrado (None = ninguém detectado)."""
+    """`observations` tem um item por quadro amostrado (None = ninguém detectado).
+
+    `segments` (opcional) dá o trecho contínuo de cada quadro: cortes de cena separam trechos, e nada
+    (velocidade, queda) é calculado de um trecho para outro."""
+    segments = segments or [0] * len(observations)
     detected = [o for o in observations if o is not None]
     metrics = VideoMetrics(
         duration_s=round(duration_s, 1),
@@ -116,16 +137,19 @@ def analyze_observations(
             )
         return metrics, events
 
+    segs = [sg for o, sg in zip(observations, segments) if o is not None]
     postures = [pose.classify_posture(o) for o in detected]
-    motions = [pose.motion_per_second(a, b) for a, b in zip(detected, detected[1:])]
+    motions = _motions(detected, segs)
 
     seconds: dict[str, float] = {}
-    for (a, b), posture in zip(zip(detected, detected[1:]), postures):
+    for (a, b), posture, sa, sb in zip(zip(detected, detected[1:]), postures, segs, segs[1:]):
+        if sa != sb:
+            continue
         seconds[posture] = seconds.get(posture, 0.0) + (b.t - a.t)
     metrics.posture_seconds = {k: round(v, 1) for k, v in seconds.items()}
-    metrics.mobility_index = round(float(min(1.0, np.median(motions) / MOBILITY_REFERENCE)), 2)
+    metrics.mobility_index = round(float(min(1.0, np.nanmedian(motions) / MOBILITY_REFERENCE if np.isfinite(motions).any() else 0.0)), 2)
 
-    falls = _detect_falls(detected, postures, detected[-1].t)
+    falls = _detect_falls(detected, postures, detected[-1].t, segs)
     immobility, immobile_s = _detect_immobility(detected, motions, falls)
     metrics.immobility_s = round(immobile_s, 1)
     events += falls + immobility
