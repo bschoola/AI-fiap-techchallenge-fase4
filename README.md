@@ -19,6 +19,40 @@ Anomalias detectadas: séries de sinais vitais (regras clínicas + desvio robust
 
 Arquitetura: [docs/architecture.md](docs/architecture.md) · Azure: [docs/azure-setup.md](docs/azure-setup.md) · Relatório técnico: [docs/relatorio-tecnico.md](docs/relatorio-tecnico.md) · Cronograma e roteiro do vídeo: [docs/roadmap.md](docs/roadmap.md)
 
+## Modelos e técnicas por análise
+
+Só quatro partes usam aprendizado de máquina; o restante é regra ou estatística, o que facilita explicar e auditar cada alerta. Nenhum modelo foi treinado com dados reais de pacientes: o YOLO usa os pesos pré-treinados da Ultralytics, o Isolation Forest aprende na hora com a série de cada paciente, e todos os limiares são pontos de partida.
+
+### Áudio
+| Etapa | Modelo / técnica |
+|---|---|
+| Transcrição | **Azure AI Speech**, reconhecimento contínuo em pt-BR (serve para áudios longos). Com `MOCK_AZURE=true`, um transcritor simulado de texto fixo. |
+| Sentimento e frases-chave | **Azure AI Language** (`analyze_sentiment` e `extract_key_phrases`). Com `MOCK_AZURE=true`, um analisador simulado por palavras-chave. |
+| Termos críticos | **Regras**: dicionário com severidade e categoria, ignorando termos negados ("sem falta de ar"). |
+| Ritmo de fala | **Métricas calculadas** a partir dos tempos da transcrição (palavras por minuto e proporção de pausa); só geram alerta em trechos longos o bastante. |
+
+### Vídeo
+| Etapa | Modelo / técnica |
+|---|---|
+| Pessoa e pose | **YOLOv8n-pose** (`yolov8n-pose.pt`, nano) via `ultralytics`, em CPU, imagem de 480 px: caixa da pessoa e 17 pontos do corpo. |
+| Plano B | **OpenCV**: subtração de fundo MOG2 e a maior região em movimento, sem rede neural. Fica ativo se o YOLO não estiver instalado. |
+| Postura, queda, imobilidade, joelhos | **Regras geométricas** sobre a pose: ângulo do tronco, queda de em pé para deitado em até 2 s, imobilidade abaixo de 0,03 altura-do-corpo/s, ângulo e assimetria dos joelhos. |
+| Índice de mobilidade | Mediana do movimento, normalizada por uma referência fixa. |
+
+### Anomalias clínicas
+| Etapa | Modelo / técnica |
+|---|---|
+| Sinais vitais | Regras clínicas (por exemplo SpO₂ < 90) + desvio robusto em relação à linha de base do próprio paciente (mediana e MAD) + tendência linear de 3 dias + **Isolation Forest** do scikit-learn (100 árvores, `StandardScaler`) sobre as últimas 24 h. É o único modelo de ML treinado nesta parte. |
+| Prescrições | **Regras**: salto de dose, aumentos repetidos, medicamento novo e polifarmácia. |
+| Movimento | **Regras** sobre o histórico de vídeo: queda de 25% ou mais no índice de mobilidade e quedas no vídeo mais recente. |
+| Anamnese | **Regras**: termos críticos (o mesmo dicionário do áudio) e linguagem de piora em consultas seguidas. |
+
+### Fusão e relatório
+| Etapa | Modelo / técnica |
+|---|---|
+| Risco de 0 a 100 | **Pontuação por regra**: pontos por severidade, teto por modalidade e correlações entre elas. |
+| Resumo textual | **Texto montado por regra**, não gerado por LLM. O botão "Análise de anomalias com IA" usa essa combinação, não um modelo de linguagem. |
+
 ## Como rodar
 
 ### Opção A — Docker (Postgres + portal)
