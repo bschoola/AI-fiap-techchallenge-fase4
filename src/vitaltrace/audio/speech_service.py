@@ -1,16 +1,35 @@
 """Transcrição com Azure AI Speech (Speech to Text)."""
 
+import json
 import threading
 from pathlib import Path
 from typing import Protocol
 
-from vitaltrace.audio.models import SpeechSegment, Transcription
+from vitaltrace.audio.models import SpeechSegment, Transcription, WordTiming
 
 _TICKS_PER_SECOND = 10_000_000  # o SDK mede offset/duração em unidades de 100 ns
 
 
 class TranscriptionError(RuntimeError):
     pass
+
+
+def parse_word_timings(result_json: str) -> list[WordTiming]:
+    """Lê as palavras com offset/duração do JSON detalhado do Azure Speech (NBest[0].Words)."""
+    try:
+        data = json.loads(result_json or "{}")
+        raw = (data.get("NBest") or [{}])[0].get("Words") or []
+    except (ValueError, AttributeError, IndexError, TypeError):
+        return []
+    words: list[WordTiming] = []
+    for item in raw:
+        try:
+            start = float(item["Offset"]) / _TICKS_PER_SECOND
+            end = start + float(item["Duration"]) / _TICKS_PER_SECOND
+            words.append(WordTiming(word=str(item.get("Word", "")), start=start, end=end))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return words
 
 
 class Transcriber(Protocol):
@@ -35,12 +54,15 @@ class AzureSpeechTranscriber:
             subscription=self._key, region=self._region
         )
         speech_config.speech_recognition_language = self._language
+        # Offset e duração de cada palavra: permite medir as pausas DENTRO de cada frase
+        speech_config.request_word_level_timestamps()
         audio_config = speechsdk.audio.AudioConfig(filename=str(wav_path))
         recognizer = speechsdk.SpeechRecognizer(
             speech_config=speech_config, audio_config=audio_config
         )
 
         segments: list[SpeechSegment] = []
+        words: list[WordTiming] = []
         errors: list[str] = []
         done = threading.Event()
 
@@ -58,6 +80,7 @@ class AzureSpeechTranscriber:
                         text=result.text,
                     )
                 )
+                words.extend(parse_word_timings(result.json))
 
         def on_canceled(evt: "speechsdk.SpeechRecognitionCanceledEventArgs") -> None:
             details = evt.cancellation_details
@@ -82,4 +105,5 @@ class AzureSpeechTranscriber:
             text=" ".join(s.text for s in segments),
             language=self._language,
             segments=segments,
+            words=words,
         )

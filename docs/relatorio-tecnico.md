@@ -25,7 +25,9 @@ Diagrama completo e decisões em [architecture.md](architecture.md). Cada módul
 | Voz | Azure AI Speech (pt-BR, reconhecimento contínuo) | Transcrição gerenciada, com tempo por trecho | Texto e segmentos |
 | Texto da fala | Azure AI Language (sentimento, frases-chave) | Serviço gerenciado em pt | Sentimento e frases |
 | Texto clínico | Dicionário pt-BR de termos críticos (sem acento, com negação e severidade) | Detecta "falta de ar", "dor no peito" e ignora "sem falta de ar" | Termos, categoria, severidade |
-| Ritmo de fala | Palavras/min e % de pausa a partir dos tempos da transcrição | Indício de fadiga/disartria | Alertas médios/baixos |
+| Ritmo de fala | Palavras/min e % de pausa a partir dos tempos da transcrição (com marcação por palavra do Azure Speech) | Indício de fadiga/disartria | Alertas médios/baixos |
+| Prosódia | Processamento de sinal no WAV (`audio/prosody.py`): pausas, duração dos trechos de fala, variação do tom | Mede COMO a pessoa fala, sem depender das palavras; roda em CPU e é explicável | Alerta alto/crítico de fala entrecortada |
+| Tom de voz (opcional) | Azure OpenAI `gpt-audio` com entrada de áudio | Percebe respiração audível, voz fraca, tensão; usado só como confirmação porque a resposta varia | Esforço respiratório, cansaço, tom emocional |
 | Vídeo | YOLOv8n-pose (ultralytics, CPU, 480 px) e, sem ele, subtração de fundo MOG2 (OpenCV) | Leve o bastante para CPU; pose permite ângulos e postura | Postura, mobilidade, queda, imobilidade, assimetria de joelhos |
 | Sinais vitais | Regras clínicas, mediana/MAD contra a linha de base do paciente, regressão linear (3 dias) e Isolation Forest (100 árvores, treinado na linha de base) | Camadas explicáveis; o Isolation Forest cobre combinações incomuns | Achados com evidência |
 | Prescrições | Regras sobre a linha do tempo de doses | Mudanças rápidas de dose sugerem resposta insuficiente | Achados por fármaco |

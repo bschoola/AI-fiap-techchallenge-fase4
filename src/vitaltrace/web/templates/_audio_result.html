@@ -15,9 +15,34 @@
         <div class="kpi"><span>Palavras</span><b>{{ analysis.metrics.words }}</b></div>
         <div class="kpi"><span>Duração</span><b>{{ analysis.metrics.duration_s | num(1) }}{{ ' s' if analysis.metrics.duration_s is not none }}</b></div>
         <div class="kpi"><span>Palavras/min</span><b>{{ analysis.metrics.words_per_minute | num }}</b></div>
-        <div class="kpi"><span>Tempo em pausa</span><b>{{ ((analysis.metrics.pause_ratio * 100) | num) ~ '%' if analysis.metrics.pause_ratio is not none else '—' }}</b></div>
+        {% set pr = analysis.prosody %}
+        {% set pause = pr.pause_ratio if pr and pr.pause_ratio is not none else analysis.metrics.pause_ratio %}
+        <div class="kpi"><span>Tempo em pausa</span><b>{{ ((pause * 100) | num) ~ '%' if pause is not none else '—' }}</b></div>
+        {% if analysis.metrics.articulation_wpm is not none %}<div class="kpi"><span>Palavras/min sem as pausas</span><b>{{ analysis.metrics.articulation_wpm | num }}</b></div>{% endif %}
+        {% if pr and pr.speech_s %}
+        <div class="kpi"><span>Pausas de 1 s ou mais</span><b>{{ pr.long_pause_count }}</b></div>
+        <div class="kpi"><span>Pausa típica</span><b>{{ pr.median_pause_s | num(1) }}{{ ' s' if pr.median_pause_s is not none }}</b></div>
+        <div class="kpi"><span>Fala sem parar (média)</span><b>{{ pr.mean_phrase_s | num(1) }}{{ ' s' if pr.mean_phrase_s is not none }}</b></div>
+        <div class="kpi"><span>Variação do tom</span><b>{{ pr.pitch_variation_st | num(1) }}{{ ' st' if pr.pitch_variation_st is not none }}</b></div>
+        {% endif %}
       </div>
+      {% if pr and pr.speech_s %}<p class="small muted" style="margin:0">Pausas e tom são medidos direto no áudio, não na transcrição. Variação do tom em semitons: valores baixos indicam fala monótona.</p>
+      {% elif from_file %}<p class="small muted" style="margin:0">Não foi possível medir pausas e tom neste áudio.</p>{% endif %}
       {% if not analysis.metrics.reliable %}<p class="small muted" style="margin:0">Trecho curto ou sem marcação de tempo: o ritmo de fala não é usado para gerar alertas.</p>{% endif %}
+      {% set vt = analysis.voice_tone %}
+      {% if vt %}
+      <div class="stack" style="gap:8px">
+        <h3 style="font-size:15px;font-weight:800;margin:0">Tom de voz (avaliação por IA)</h3>
+        <div class="kpis">
+          <div class="kpi"><span>Esforço respiratório</span><b>{{ vt.respiratory_effort | capitalize }}</b></div>
+          <div class="kpi"><span>Cansaço</span><b>{{ vt.fatigue | capitalize }}</b></div>
+          <div class="kpi"><span>Tom emocional</span><b>{{ (vt.emotional_tone or '—') | capitalize }}</b></div>
+        </div>
+        {% if vt.summary %}<p class="small" style="margin:0">{{ vt.summary }}</p>{% endif %}
+        <p class="small muted" style="margin:0">Impressão de um modelo de áudio ({{ vt.source }}). Pode variar entre execuções e não substitui a avaliação clínica.</p>
+      </div>
+      {% endif %}
+      {% for w in analysis.warnings %}<div class="notice">{{ w }}</div>{% endfor %}
     </section>
     <section class="card stack" style="gap:14px">
       <h2 style="font-size:18px;font-weight:800">Sentimento</h2>

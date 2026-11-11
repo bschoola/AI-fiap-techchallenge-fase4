@@ -126,6 +126,16 @@ Outros motores: `--engine tts` usa o endpoint `/audio/speech` (`AZURE_OPENAI_TTS
 
 Erros comuns: `404` = nome do deployment diferente do `.env`; `400` mencionando `modalities` ou `audio` = o deployment não é um modelo de áudio, ou a `AZURE_OPENAI_API_VERSION` é antiga demais; `401` = chave/endpoint de outro recurso; `429` = cota, o script espera e tenta de novo. Custo: alguns centavos pelos três áudios; apague o recurso ao terminar.
 
+## Azure OpenAI (opcional): tom de voz na análise de áudio
+
+O mesmo deployment `gpt-audio` (ou `gpt-audio-mini`) também **ouve** a gravação do paciente e descreve como ele fala: esforço respiratório, cansaço e tom emocional. Para ligar:
+
+1. Confira no `.env`: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_KEY` e `AZURE_OPENAI_AUDIO_DEPLOYMENT` (os mesmos do gerador de áudios).
+2. Defina `VOICE_TONE_ENABLED=true` e reinicie a aplicação.
+3. Envie um áudio em **Paciente → Analisar gravação**: o cartão "Voz e ritmo de fala" passa a mostrar o bloco "Tom de voz (avaliação por IA)".
+
+Desligado (padrão), nada muda: as pausas e o tom medidos direto no áudio continuam funcionando sem Azure OpenAI. Se a chamada falhar, a análise termina normalmente e mostra um aviso. O áudio é enviado ao seu recurso do Azure OpenAI; a cobrança é por tokens de áudio de entrada.
+
 ## Problemas comuns
 
 | Sintoma | Causa provável |

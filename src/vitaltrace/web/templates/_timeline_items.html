@@ -79,8 +79,16 @@
           <div class="kpi"><span>Sentimento</span><b>{{ sentiment_pt.get(s.get('label'), '—') }}</b></div>
           <div class="kpi"><span>Negativo</span><b>{{ ((s.get('negative') or 0) * 100) | num }}%</b></div>
           <div class="kpi"><span>Palavras/min</span><b>{{ m.get('words_per_minute') | num }}</b></div>
-          <div class="kpi"><span>Tempo em pausa</span><b>{{ ((m.get('pause_ratio') * 100) | num) ~ '%' if m.get('pause_ratio') is not none else '—' }}</b></div>
+          {% set pr = p.get('prosody') or {} %}
+          {% set pause = pr.get('pause_ratio') if pr.get('pause_ratio') is not none else m.get('pause_ratio') %}
+          <div class="kpi"><span>Tempo em pausa</span><b>{{ ((pause * 100) | num) ~ '%' if pause is not none else '—' }}</b></div>
+          {% if pr.get('speech_s') %}
+          <div class="kpi"><span>Pausas de 1 s ou mais</span><b>{{ pr.get('long_pause_count') }}</b></div>
+          <div class="kpi"><span>Fala sem parar (média)</span><b>{{ pr.get('mean_phrase_s') | num(1) }}{{ ' s' if pr.get('mean_phrase_s') is not none }}</b></div>
+          {% endif %}
         </div>
+        {% set vt = p.get('voice_tone') or {} %}
+        {% if vt %}<p class="small" style="margin:0"><b>Tom de voz (avaliação por IA):</b> esforço respiratório {{ vt.get('respiratory_effort') }}, cansaço {{ vt.get('fatigue') }}{{ ', tom ' ~ vt.get('emotional_tone') if vt.get('emotional_tone') }}. {{ vt.get('summary') or '' }}</p>{% endif %}
         {% set phrases = (p.get('text_analysis') or {}).get('key_phrases') or [] %}
         {% if phrases %}<div class="row" style="gap:6px;flex-wrap:wrap">{% for k in phrases[:10] %}<span class="chip">{{ k }}</span>{% endfor %}</div>{% endif %}
         {% set terms = p.get('critical_terms') or [] %}

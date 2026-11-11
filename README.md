@@ -29,7 +29,10 @@ Só quatro partes usam aprendizado de máquina; o restante é regra ou estatíst
 | Transcrição | **Azure AI Speech**, reconhecimento contínuo em pt-BR (serve para áudios longos). Com `MOCK_AZURE=true`, um transcritor simulado de texto fixo. |
 | Sentimento e frases-chave | **Azure AI Language** (`analyze_sentiment` e `extract_key_phrases`). Com `MOCK_AZURE=true`, um analisador simulado por palavras-chave. |
 | Termos críticos | **Regras**: dicionário com severidade e categoria, ignorando termos negados ("sem falta de ar"). |
-| Ritmo de fala | **Métricas calculadas** a partir dos tempos da transcrição (palavras por minuto e proporção de pausa); só geram alerta em trechos longos o bastante. |
+| Ritmo de fala | **Métricas calculadas** a partir dos tempos da transcrição (palavras por minuto e proporção de pausa); só geram alerta em trechos longos o bastante. Com a marcação **por palavra** do Azure Speech (`request_word_level_timestamps`), as pausas dentro de cada frase entram na conta e sai também a velocidade "sem as pausas". |
+| Prosódia (como a pessoa fala) | **Processamento de sinal** com numpy direto no WAV (`audio/prosody.py`): tempo em silêncio, número e duração das pausas, duração média de cada trecho falado e variação do tom (F0 por autocorrelação). Não depende do Azure nem da transcrição. |
+| Tom de voz (opcional) | **Azure OpenAI `gpt-audio`** ouvindo a gravação (`VOICE_TONE_ENABLED=true`): esforço respiratório, cansaço e tom emocional em JSON. É uma segunda opinião: sozinho gera, no máximo, alerta médio. |
+| Fusão | **Regra**: muito silêncio + pausas longas e frequentes + trechos curtos = "Fala entrecortada" com severidade **alta**, mesmo que o paciente não diga nenhum termo crítico; vira **crítica** quando confirmada por queixa relatada ou pelo tom de voz. Limiares em `config.py` (`breathless_*`). |
 
 ### Vídeo
 | Etapa | Modelo / técnica |

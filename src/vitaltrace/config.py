@@ -17,12 +17,15 @@ class Settings(BaseSettings):
     azure_language_key: str = ""
     azure_language_endpoint: str = ""
 
-    # Azure OpenAI (opcional): só o gerador de áudios de demonstração usa
+    # Azure OpenAI (opcional): gerador de áudios de demonstração e avaliação do tom de voz
     azure_openai_endpoint: str = ""
     azure_openai_key: str = ""
     azure_openai_audio_deployment: str = "gpt-audio"  # chat completions com saída de áudio (recomendado)
     azure_openai_tts_deployment: str = "gpt-4o-mini-tts"  # /audio/speech (gpt-4o-mini-tts, tts-hd, tts)
     azure_openai_api_version: str = "2025-04-01-preview"
+
+    # True = um modelo de áudio (AZURE_OPENAI_AUDIO_DEPLOYMENT) ouve a gravação e descreve o tom de voz
+    voice_tone_enabled: bool = False
 
     # True = usa serviços simulados, sem chamar o Azure (dev/testes)
     mock_azure: bool = False
@@ -52,6 +55,22 @@ class Settings(BaseSettings):
     negative_sentiment_threshold: float = 0.6
     slow_speech_wpm: float = 90.0
     high_pause_ratio: float = 0.5
+    # Fala entrecortada (padrão de quem está sem fôlego): TODOS os critérios precisam ser atendidos.
+    # Calibrado nos áudios de data/samples: a consulta normal fica em 29% de pausa, mediana 0,5 s
+    # e nenhuma pausa longa; a de falta de ar, em 54%, 1,1 s e 17 pausas longas por minuto.
+    breathless_pause_ratio: float = 0.45
+    breathless_median_pause_s: float = 0.8
+    breathless_long_pauses_per_min: float = 6.0
+    breathless_max_phrase_s: float = 2.0
+    monotone_pitch_st: float = 3.0  # variação de tom abaixo disso = fala monótona (só informativo)
+
+    def missing_voice_tone_settings(self) -> list[str]:
+        required = {
+            "AZURE_OPENAI_ENDPOINT": self.azure_openai_endpoint,
+            "AZURE_OPENAI_KEY": self.azure_openai_key,
+            "AZURE_OPENAI_AUDIO_DEPLOYMENT": self.azure_openai_audio_deployment,
+        }
+        return [name for name, value in required.items() if not value.strip()]
 
     def missing_azure_settings(self) -> list[str]:
         required = {
