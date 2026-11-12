@@ -1,7 +1,8 @@
 """Análise detalhada de um único vídeo: sem histórico do paciente, só o que aparece na gravação.
 
 Procura, dentro do próprio vídeo, sinais de desvio: tronco inclinado por muito tempo, ombros/quadril
-desalinhados, oscilação em pé, assimetria de amplitude entre os lados e, em exercícios repetitivos,
+desalinhados, oscilação em pé, assimetria de amplitude entre os lados (joelho, quadril, ombro e cotovelo)
+e, em exercícios repetitivos,
 ritmo irregular e queda de amplitude (fadiga). Limiares conservadores, pensados para evitar alarme falso:
 são ângulos 2D de uma câmera só, então os achados são apoio à revisão humana, não diagnóstico.
 """
@@ -39,10 +40,19 @@ MAX_CURVE_POINTS = 400
 JOINTS = {
     "joelho esquerdo": (pose.L_HIP, pose.L_KNEE, pose.L_ANKLE),
     "joelho direito": (pose.R_HIP, pose.R_KNEE, pose.R_ANKLE),
-    "cotovelo esquerdo": (pose.L_SHOULDER, 7, 9),
-    "cotovelo direito": (pose.R_SHOULDER, 8, 10),
+    "quadril esquerdo": (pose.L_SHOULDER, pose.L_HIP, pose.L_KNEE),
+    "quadril direito": (pose.R_SHOULDER, pose.R_HIP, pose.R_KNEE),
+    "ombro esquerdo": (pose.L_ELBOW, pose.L_SHOULDER, pose.L_HIP),
+    "ombro direito": (pose.R_ELBOW, pose.R_SHOULDER, pose.R_HIP),
+    "cotovelo esquerdo": (pose.L_SHOULDER, pose.L_ELBOW, pose.L_WRIST),
+    "cotovelo direito": (pose.R_SHOULDER, pose.R_ELBOW, pose.R_WRIST),
 }
-_PAIRS = [("joelho esquerdo", "joelho direito"), ("cotovelo esquerdo", "cotovelo direito")]
+_PAIRS = [
+    ("joelho esquerdo", "joelho direito"),
+    ("quadril esquerdo", "quadril direito"),
+    ("ombro esquerdo", "ombro direito"),
+    ("cotovelo esquerdo", "cotovelo direito"),
+]
 
 
 @dataclass
@@ -50,27 +60,50 @@ class DetailResult:
     events: list[VideoEvent] = field(default_factory=list)
     joints: dict[str, float] = field(default_factory=dict)
     curve: dict | None = None
+    ranges: dict[str, dict] = field(default_factory=dict)  # mínimo, máximo e amplitude por articulação
+    series: dict[str, np.ndarray] = field(default_factory=dict)  # ângulo por quadro (NaN = não medido)
+    postures: list[str] = field(default_factory=list)
+    views: list[str | None] = field(default_factory=list)
 
 
 def smooth_keypoints(
     observations: list[PersonObservation | None], segments: list[int], window: int = 3
 ) -> list[PersonObservation | None]:
-    """Mediana móvel das coordenadas dentro de cada trecho: tira o tremor da pose sem borrar movimentos."""
+    """Mediana móvel das coordenadas dentro de cada trecho: tira o tremor da pose sem borrar movimentos.
+
+    Cada ponto só usa os vizinhos em que ele próprio é confiável (um ponto chutado não contamina
+    os bons), e uma falha de um único quadro entre dois quadros bons é preenchida pela média."""
     out = list(observations)
     half = window // 2
+    n = len(observations)
+
+    def kp_at(j: int, k: int):
+        if not (0 <= j < n):
+            return None
+        o = observations[j]
+        if o is None or not o.keypoints or k >= len(o.keypoints) or o.keypoints[k][2] < pose.MIN_CONF:
+            return None
+        return o.keypoints[k]
+
     for i, o in enumerate(observations):
         if o is None or not o.keypoints:
             continue
-        neighbours = [
-            observations[j]
-            for j in range(max(0, i - half), min(len(observations), i + half + 1))
-            if observations[j] is not None and observations[j].keypoints and segments[j] == segments[i]
-        ]
-        if len(neighbours) < 2:
-            continue
-        arr = np.array([[(x, y) for x, y, _ in n.keypoints] for n in neighbours])
-        med = np.median(arr, axis=0)
-        out[i] = o.model_copy(update={"keypoints": [(float(med[k][0]), float(med[k][1]), o.keypoints[k][2]) for k in range(len(med))]})
+        new, changed = list(o.keypoints), False
+        for k, (x, y, c) in enumerate(o.keypoints):
+            if c >= pose.MIN_CONF:
+                near = [kp_at(j, k) for j in range(i - half, i + half + 1) if 0 <= j < n and segments[j] == segments[i]]
+                near = [p for p in near if p is not None]
+                if len(near) >= 2:
+                    new[k] = (float(np.median([p[0] for p in near])), float(np.median([p[1] for p in near])), c)
+                    changed = True
+            else:
+                before = kp_at(i - 1, k) if i > 0 and segments[i - 1] == segments[i] else None
+                after = kp_at(i + 1, k) if i + 1 < n and segments[i + 1] == segments[i] else None
+                if before is not None and after is not None:
+                    new[k] = ((before[0] + after[0]) / 2, (before[1] + after[1]) / 2, 0.9 * min(before[2], after[2]))
+                    changed = True
+        if changed:
+            out[i] = o.model_copy(update={"keypoints": new})
     return out
 
 
@@ -122,7 +155,7 @@ def _trunk_lean(obs, postures, segments, times) -> list[VideoEvent]:
     return events
 
 
-def _tilts(obs, postures, times) -> list[VideoEvent]:
+def _tilts(obs, postures, times, views) -> list[VideoEvent]:
     events = []
     for etype, label, (left, right) in (
         ("shoulder_tilt", "ombros", (pose.L_SHOULDER, pose.R_SHOULDER)),
@@ -130,8 +163,8 @@ def _tilts(obs, postures, times) -> list[VideoEvent]:
     ):
         values, stamps = [], []
         for i, o in enumerate(obs):
-            if o is None or postures[i] != "standing":
-                continue
+            if o is None or postures[i] != "standing" or views[i] == "lateral":
+                continue  # de perfil a linha dos ombros/quadril não mede desnível
             tilt = pose.line_tilt_deg(o, left, right)
             if tilt is not None:
                 values.append(tilt)
@@ -317,22 +350,35 @@ def analyze_detail(
     if sum(o is not None for o in observations) < 5:
         return result
     postures = [pose.classify_posture(o) if o is not None else "" for o in observations]
+    views = [pose.view(o) if o is not None else None for o in observations]
+    result.postures, result.views = postures, views
 
     result.events += _trunk_lean(observations, postures, segments, times)
-    result.events += _tilts(observations, postures, times)
+    result.events += _tilts(observations, postures, times, views)
     result.events += _sway(observations, postures, segments, times)
 
     series = _joint_series(observations, postures)
+    result.series = series
     roms = {name: _rom(values) for name, values in series.items()}
     result.joints = {name: round(r) for name, r in roms.items() if r is not None}
+    for name, values in series.items():
+        valid = values[~np.isnan(values)]
+        if roms[name] is not None:
+            lo, hi = float(np.percentile(valid, 5)), float(np.percentile(valid, 95))
+            result.ranges[name] = {"min": round(lo), "max": round(hi), "rom": round(hi - lo), "frames": int(len(valid))}
+
+    # Simetria entre os lados só vale quando os DOIS lados estão à vista: de perfil o lado de trás
+    # fica encoberto e a "assimetria" seria só oclusão.
+    both_sides = np.array([v in ("frontal", "oblique") for v in views])
     for left, right in _PAIRS:
-        a, b = roms.get(left), roms.get(right)
+        seen = both_sides & ~np.isnan(series[left]) & ~np.isnan(series[right])
+        a, b = _rom(series[left][seen]), _rom(series[right][seen])
         if a is None or b is None or max(a, b) < ROM_MIN_DEG:
             continue
         ratio = min(a, b) / max(a, b)
         if ratio < ROM_ASYM_RATIO:
             weak, strong = (left, right) if a < b else (right, left)
-            valid_t = [times[i] for i in range(len(times)) if not np.isnan(series[left][i]) or not np.isnan(series[right][i])]
+            valid_t = [times[i] for i in np.flatnonzero(seen)]
             result.events.append(
                 VideoEvent(
                     type="rom_asymmetry",

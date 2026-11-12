@@ -1,17 +1,38 @@
-{# Qualidade da análise, amplitude de movimento e curva de repetições. Espera `vd` (payload da análise de vídeo). #}
+{# O que foi visto, qualidade da análise, ângulos por articulação e curva de repetições. Espera `vd` (payload da análise de vídeo). #}
 {% set q = vd.get('quality') or {} %}
 {% set joints = vd.get('joints') or {} %}
+{% set ranges = vd.get('joint_ranges') or {} %}
 {% set curve = vd.get('curve') %}
+{% set ppl = vd.get('people') or {} %}
+{% set scene = vd.get('scene') or [] %}
+{% if scene or vd.get('narrative') or (ppl.get('max') or 0) > 1 %}
+<section class="tl-sec"><h3>O que foi visto no vídeo</h3>
+  {% if (ppl.get('max') or 0) > 1 %}<p class="small" style="margin:0 0 8px">Até <b>{{ ppl.get('max') }} pessoas</b> em cena ao mesmo tempo{% if ppl.get('analyzed') is not none %}; medidas feitas na <b>pessoa nº {{ ppl.get('analyzed') }}</b> ({{ 'indicada pelo médico' if ppl.get('choice') == 'manual' else 'escolhida automaticamente' }}){% endif %}. As demais aparecem em cinza no vídeo anotado e não entram nas medidas.</p>{% endif %}
+  {% if scene %}<ul class="scene">{% for s in scene %}<li><b>{{ s.t_start | round(0) | int }}–{{ s.t_end | round(0) | int }} s</b> · {{ s.text }}</li>{% endfor %}</ul>
+  <p class="small muted" style="margin:8px 0 0">O exercício é uma estimativa por regras (postura, articulação que mais se moveu e deslocamento): confira no vídeo.</p>{% endif %}
+  {% if vd.get('narrative') %}<p class="small" style="margin:10px 0 0"><b>Descrição da cena por IA:</b> {{ vd.get('narrative') }} <span class="muted">(texto gerado por modelo multimodal; não é usado nas medidas nem nos alertas)</span></p>{% endif %}
+</section>
+{% endif %}
 {% if q.get('depth') == 'detailed' or q.get('warnings') %}
 <section class="tl-sec"><h3>Qualidade da análise</h3>
   <p class="small muted" style="margin:0">{% if q.get('depth') == 'detailed' %}Análise detalhada, {{ q.get('sample_fps') | num(0) }} quadros por segundo{% else %}Análise rápida, {{ q.get('sample_fps') | num(0) }} quadros por segundo{% endif %}
-    · {{ q.get('cuts') or 0 }} corte(s) de cena{% if q.get('keypoint_ratio') is not none %} · esqueleto utilizável em {{ ((q.get('keypoint_ratio') or 0) * 100) | num }}% dos quadros{% endif %}.</p>
+    · {{ q.get('cuts') or 0 }} corte(s) de cena{% if q.get('keypoint_ratio') is not none %} · esqueleto utilizável em {{ ((q.get('keypoint_ratio') or 0) * 100) | num }}% dos quadros{% endif %}{% if q.get('mean_keypoint_conf') is not none %} · confiança média dos pontos {{ ((q.get('mean_keypoint_conf') or 0) * 100) | num }}%{% endif %}{% if q.get('source_size') %} · vídeo de {{ q.get('source_size')[0] }}×{{ q.get('source_size')[1] }} px{% endif %}.
+    {% if q.get('refined_ratio') %}Pose refeita no recorte do paciente em {{ ((q.get('refined_ratio') or 0) * 100) | num }}% dos quadros.{% endif %}
+    {% if q.get('fixed_swaps') %}{{ q.get('fixed_swaps') }} quadro(s) com lado esquerdo/direito trocado foram corrigidos.{% endif %}
+    {% if q.get('dropped_points') %}{{ q.get('dropped_points') }} ponto(s) implausível(is) ficaram fora dos ângulos.{% endif %}</p>
   {% for w in q.get('warnings') or [] %}<div class="notice info" style="margin-top:8px">{{ w }}</div>{% endfor %}
 </section>
 {% endif %}
 {% if joints %}
-<section class="tl-sec"><h3>Amplitude de movimento (2D)</h3>
+<section class="tl-sec"><h3>Ângulos por articulação (2D)</h3>
+  {% if ranges %}
+  <table class="joints"><thead><tr><th>Articulação</th><th>Menor ângulo</th><th>Maior ângulo</th><th>Amplitude</th></tr></thead><tbody>
+    {% for name, r in ranges.items() %}<tr><td>{{ name | capitalize }}</td><td>{{ r.min }}°</td><td>{{ r.max }}°</td><td><b>{{ r.rom }}°</b></td></tr>{% endfor %}
+  </tbody></table>
+  <p class="small muted" style="margin:8px 0 0">Ângulo interno medido na imagem (180° = membro estendido). Joelho: quadril–joelho–tornozelo; quadril: ombro–quadril–joelho; ombro: cotovelo–ombro–quadril; cotovelo: ombro–cotovelo–punho. De frente, a flexão de joelho e quadril aparece menor do que é.</p>
+  {% else %}
   <div class="kpis">{% for name, rom in joints.items() %}<div class="kpi"><span>{{ name | capitalize }}</span><b>{{ rom }}°</b></div>{% endfor %}</div>
+  {% endif %}
   {% if curve and curve.get('points') %}
   <p class="small muted" style="margin:10px 0 4px">Ângulo do {{ curve.joint }} ao longo do vídeo · {{ curve.get('n_reps') or 0 }} repetição(ões) (pontos amarelos){% if curve.get('cv') is not none %} · variação do ritmo {{ ((curve.cv) * 100) | num }}%{% endif %}{% if curve.get('amp_drop') is not none %} · variação de amplitude início→fim {{ ((curve.amp_drop) * 100) | num }}%{% endif %}</p>
   {{ curve | angle_curve }}

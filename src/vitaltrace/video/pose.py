@@ -8,8 +8,10 @@ from vitaltrace.video.models import PersonObservation
 
 # índices COCO-17
 L_SHOULDER, R_SHOULDER, L_HIP, R_HIP = 5, 6, 11, 12
+L_ELBOW, R_ELBOW, L_WRIST, R_WRIST = 7, 8, 9, 10
 L_KNEE, R_KNEE, L_ANKLE, R_ANKLE = 13, 14, 15, 16
-MIN_CONF = 0.3
+MIN_CONF = 0.3  # ponto visível o bastante para desenhar, classificar a postura e medir movimento
+ANGLE_CONF = 0.5  # ângulos articulares exigem pontos mais confiáveis: ponto "chutado" vira ângulo errado
 SKELETON = [(5, 7), (7, 9), (6, 8), (8, 10), (5, 6), (5, 11), (6, 12), (11, 12),
             (11, 13), (13, 15), (12, 14), (14, 16)]  # fmt: skip
 
@@ -22,11 +24,11 @@ def bbox_width(obs: PersonObservation) -> float:
     return max(1.0, obs.bbox[2] - obs.bbox[0])
 
 
-def _pt(obs: PersonObservation, idx: int) -> np.ndarray | None:
+def _pt(obs: PersonObservation, idx: int, min_conf: float = MIN_CONF) -> np.ndarray | None:
     if not obs.keypoints or idx >= len(obs.keypoints):
         return None
     x, y, c = obs.keypoints[idx]
-    return np.array([x, y]) if c >= MIN_CONF else None
+    return np.array([x, y]) if c >= min_conf else None
 
 
 def _mid(a: np.ndarray | None, b: np.ndarray | None) -> np.ndarray | None:
@@ -84,7 +86,7 @@ def _angle(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float:
 
 def knee_angles(obs: PersonObservation) -> tuple[float, float] | None:
     """Ângulos (quadril–joelho–tornozelo) esquerdo e direito, se os dois lados estão visíveis."""
-    pts = {i: _pt(obs, i) for i in (L_HIP, L_KNEE, L_ANKLE, R_HIP, R_KNEE, R_ANKLE)}
+    pts = {i: _pt(obs, i, ANGLE_CONF) for i in (L_HIP, L_KNEE, L_ANKLE, R_HIP, R_KNEE, R_ANKLE)}
     if any(p is None for p in pts.values()):
         return None
     left = _angle(pts[L_HIP], pts[L_KNEE], pts[L_ANKLE])
@@ -92,12 +94,30 @@ def knee_angles(obs: PersonObservation) -> tuple[float, float] | None:
     return left, right
 
 
-def joint_angle(obs: PersonObservation, a: int, b: int, c: int) -> float | None:
-    """Ângulo em `b` formado por a–b–c (2D, em graus), se os três pontos são confiáveis."""
-    pa, pb, pc = _pt(obs, a), _pt(obs, b), _pt(obs, c)
+def joint_angle(obs: PersonObservation, a: int, b: int, c: int, min_conf: float = ANGLE_CONF) -> float | None:
+    """Ângulo em `b` formado por a–b–c (2D, em graus), se os três pontos são confiáveis e distintos."""
+    pa, pb, pc = _pt(obs, a, min_conf), _pt(obs, b, min_conf), _pt(obs, c, min_conf)
     if pa is None or pb is None or pc is None:
         return None
+    if float(np.linalg.norm(pa - pb)) < 1.0 or float(np.linalg.norm(pc - pb)) < 1.0:
+        return None  # pontos sobrepostos: o ângulo não existe
     return _angle(pa, pb, pc)
+
+
+def view(obs: PersonObservation) -> str | None:
+    """De que lado a câmera vê a pessoa: frontal (frente ou costas), lateral ou oblíqua.
+
+    Usa a largura dos ombros em relação ao tronco: de lado, os dois ombros caem quase no mesmo ponto.
+    Deitado ou sem tronco visível, devolve None."""
+    left, right, torso = _pt(obs, L_SHOULDER), _pt(obs, R_SHOULDER), torso_length(obs)
+    if left is None or right is None or torso is None:
+        return None
+    if trunk_lean_deg(obs) is not None and trunk_lean_deg(obs) > 60:
+        return None
+    ratio = float(np.linalg.norm(right - left)) / torso
+    if ratio < 0.3:
+        return "lateral"
+    return "frontal" if ratio >= 0.5 else "oblique"
 
 
 def torso_length(obs: PersonObservation) -> float | None:

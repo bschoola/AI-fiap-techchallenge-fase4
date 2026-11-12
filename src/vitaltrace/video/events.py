@@ -156,8 +156,8 @@ def analyze_observations(
 
     diffs = []
     for o, posture in zip(detected, postures):
-        if posture == "lying":
-            continue
+        if posture == "lying" or pose.view(o) == "lateral":
+            continue  # de perfil um joelho encobre o outro: comparar os lados não faz sentido
         angles = pose.knee_angles(o)
         if angles:
             diffs.append(abs(angles[0] - angles[1]))

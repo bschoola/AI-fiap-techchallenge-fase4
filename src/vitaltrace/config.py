@@ -42,14 +42,28 @@ class Settings(BaseSettings):
     max_upload_mb: int = 25
     max_video_mb: int = 200
 
-    # Vídeo: "auto" usa YOLOv8-pose se o ultralytics estiver instalado; senão, OpenCV.
+    # Vídeo: "auto" usa YOLO-pose se o ultralytics estiver instalado; senão, OpenCV.
     video_backend: str = "auto"  # auto | yolo | motion
-    yolo_pose_weights: str = "yolov8n-pose.pt"
+    # Pesos da pose. Se não carregarem (ultralytics antigo, sem internet), tenta yolo11s e yolov8n.
+    # Em máquina lenta, troque por yolo26n-pose.pt: mais rápido, menos preciso nas articulações.
+    yolo_pose_weights: str = "yolo26s-pose.pt"
     video_sample_fps: float = 2.0
     video_max_seconds: int = 120
-    video_detail_fps: float = 5.0  # amostragem do modo "Detalhada"
+    video_detail_fps: float = 8.0  # amostragem do modo "Detalhada"
+    video_analysis_width: int = 960  # largura (px) do quadro analisado; o original maior é reduzido a isso
+    video_imgsz: int = 640  # resolução de entrada do modelo no quadro inteiro
+    # 2º estágio: refaz a pose só no recorte do paciente, tirado do vídeo em resolução original
+    video_refine_pose: bool = True
+    video_refine_imgsz: int = 480
+    # Guarda o vídeo com o esqueleto desenhado (reduzido, na taxa de amostragem) junto da análise
+    video_annotated: bool = True
+    video_annotated_dir: str = "data/video_annotated"
+    # Descrição da cena por modelo multimodal do Azure OpenAI (opcional; exige implantação com imagem)
+    video_narrative_enabled: bool = False
+    azure_openai_vision_deployment: str = ""
     # Link do YouTube na análise de vídeo (precisa do yt-dlp e, para o YouTube, do runtime Deno)
     youtube_enabled: bool = True
+    youtube_max_height: int = 720  # resolução máxima baixada do YouTube
 
     # Limiares das heurísticas de áudio. São pontos de partida: ajuste com dados reais.
     negative_sentiment_threshold: float = 0.6

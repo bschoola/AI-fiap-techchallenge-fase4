@@ -112,7 +112,8 @@
         <p class="small muted" style="margin:0">
           {% if inp.get('type') == 'youtube' %}Vídeo do YouTube <a href="{{ inp.get('url') }}" target="_blank" rel="noopener noreferrer"><b>{{ inp.get('title') or inp.get('url') }}</b></a> (primeiros {{ inp.get('clip_seconds') }} s{{ ', ' ~ inp.get('size_mb') ~ ' MB baixados' if inp.get('size_mb') }}), {% elif inp.get('filename') %}Vídeo <b>{{ inp.get('filename') }}</b>{{ ' (' ~ inp.get('size_mb') ~ ' MB)' if inp.get('size_mb') }}, {% endif %}
           {{ (m.get('duration_s') | num) ~ ' s analisados' if m.get('duration_s') is not none }}{{ ' · ' ~ m.get('frames_analyzed') ~ ' quadros amostrados' if m.get('frames_analyzed') }}{{ ' · método: ' ~ p.get('backend') if p.get('backend') }}.
-          O vídeo original não é guardado, apenas os quadros-chave abaixo.</p>
+          O vídeo original não é guardado, apenas os quadros-chave abaixo{{ ' e a versão reduzida com o esqueleto' if p.get('annotated') }}.</p>
+        {% if p.get('annotated') %}<video class="annotated" controls playsinline muted preload="metadata" src="/patients/{{ patient.id }}/analyses/{{ e.analysis_id }}/annotated" style="margin-bottom:10px"></video>{% endif %}
         {% if p.get('keyframes') %}
         <div class="keyframes">
           {% for k in p.keyframes %}

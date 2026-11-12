@@ -175,3 +175,11 @@ table.t th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spa
 .depth legend{font-weight:700;font-size:14px;padding:0 6px}
 .depth-opt{display:flex;gap:10px;align-items:flex-start;cursor:pointer;line-height:1.45}
 .depth-opt input{margin-top:4px;accent-color:#0F766E}
+.people{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),220px));gap:14px}
+.person{margin:0;display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line,#E1EAEA);border-radius:12px}
+.person img{width:100%;max-height:260px;object-fit:contain;border-radius:8px;background:#0E2A2B}
+.annotated{width:100%;max-width:640px;border-radius:10px;border:1px solid var(--line,#E1EAEA);background:#000}
+.scene{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px;line-height:1.5}
+.joints{width:100%;border-collapse:collapse;font-size:14px}
+.joints th,.joints td{text-align:left;padding:6px 10px 6px 0;border-bottom:1px solid var(--line,#E1EAEA)}
+.joints th{font-weight:700;color:var(--muted,#5B6B6B);font-size:12px;text-transform:uppercase;letter-spacing:.04em}

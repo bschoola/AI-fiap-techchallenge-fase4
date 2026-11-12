@@ -7,7 +7,7 @@
     {% if source %}<p class="small muted" style="margin:0">Origem: {% if source.get('type') == 'youtube' %}vídeo do YouTube <b>{{ source.title }}</b> (primeiros {{ source.clip_seconds }} s){% else %}arquivo <b>{{ source.filename }}</b>{% endif %}.</p>{% endif %}
     <div class="kpis">
       <div class="kpi"><span>Duração analisada</span><b>{{ analysis.metrics.duration_s | num }} s</b></div>
-      <div class="kpi"><span>Pessoa visível</span><b>{{ (analysis.metrics.person_detected_ratio * 100) | num }}%</b></div>
+      <div class="kpi"><span>Paciente visível</span><b>{{ (analysis.metrics.person_detected_ratio * 100) | num }}%</b></div>
       <div class="kpi"><span>Índice de mobilidade</span><b>{{ analysis.metrics.mobility_index | num(2) }}</b></div>
       <div class="kpi"><span>Imobilidade</span><b>{{ analysis.metrics.immobility_s | num }} s</b></div>
       {% if analysis.metrics.median_knee_diff_deg is not none %}<div class="kpi"><span>Δ joelhos (mediana)</span><b>{{ analysis.metrics.median_knee_diff_deg | num }}°</b></div>{% endif %}
@@ -16,10 +16,19 @@
   </section>
 
   {% set vd = analysis.payload() %}
-  {% if vd.quality.warnings or vd.joints or vd.curve or vd.quality.depth == 'detailed' %}
+  {% if vd.quality.warnings or vd.joints or vd.curve or vd.scene or vd.quality.depth == 'detailed' %}
   <section class="card stack" style="gap:14px">
     <h2 style="font-size:18px;font-weight:800">Detalhes da análise</h2>
     {% include "_video_detail.html" %}
+  </section>
+  {% endif %}
+
+  {% if annotated_url %}
+  <section class="card stack" style="gap:12px">
+    <h2 style="font-size:18px;font-weight:800">Vídeo com o esqueleto</h2>
+    <video class="annotated" controls playsinline muted preload="metadata" src="{{ annotated_url }}"></video>
+    <p class="small" style="margin:0"><a href="{{ annotated_url }}" target="_blank" rel="noopener">Abrir o vídeo em outra aba</a></p>
+    <p class="small muted" style="margin:0">O que o sistema acompanhou: o paciente com caixa e esqueleto; outras pessoas em cinza. Versão reduzida, nos quadros analisados. Use para conferir se as articulações estão no lugar.</p>
   </section>
   {% endif %}
 

@@ -12,6 +12,7 @@ venv/
 # Dados e artefatos (datasets grandes não vão para o git)
 data/*.db
 data/raw/
+data/video_annotated/
 data/external/
 outputs/
 *.pt

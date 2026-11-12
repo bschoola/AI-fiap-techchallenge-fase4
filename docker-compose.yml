@@ -27,6 +27,7 @@ services:
       DATABASE_URL: postgresql+psycopg://vitaltrace:vitaltrace@db:5432/vitaltrace
     volumes:
       - yolo-weights:/root/.config/Ultralytics   # evita baixar os pesos a cada recriação
+      - video-annotated:/app/data/video_annotated   # vídeos com o esqueleto desenhado
     ports:
       - "8000:8000"
     depends_on:
@@ -36,3 +37,4 @@ services:
 volumes:
   pgdata:
   yolo-weights:
+  video-annotated:

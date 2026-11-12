@@ -1,13 +1,14 @@
 """Rotas do paciente: visão geral, análise de áudio/vídeo e evolução clínica."""
 
 import base64
+import shutil
 import tempfile
 from datetime import datetime, time
 from html import escape
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from markupsafe import Markup
 from sqlalchemy.orm import Session
 
@@ -20,7 +21,7 @@ from vitaltrace.audio.speech_service import TranscriptionError
 from vitaltrace.db import repos
 from vitaltrace.db.orm import Analysis, Doctor
 from vitaltrace.video import youtube
-from vitaltrace.video.analyzer import VideoError, build_video_alerts
+from vitaltrace.video.analyzer import PendingVideo, VideoError, build_video_alerts
 from vitaltrace.video.report import type_label
 from vitaltrace.web import charts, timeline
 from vitaltrace.web.common import alerts_context, get_db, patient_or_404, render, require_doctor
@@ -165,6 +166,9 @@ def video_page(
         request, "video.html", doctor=doctor, patient=patient, video_error=svc.video_error,
         backend=svc.video.backend if svc.video else None, max_mb=svc.settings.max_video_mb,
         max_seconds=svc.settings.video_max_seconds, youtube_ok=_youtube_enabled(svc),
+        detail_fps=svc.video.detail_fps if svc.video else svc.settings.video_detail_fps,
+        fast_fps=svc.settings.video_sample_fps, youtube_height=svc.settings.youtube_max_height,
+        keeps_video=svc.settings.video_annotated,
     )  # fmt: skip
 
 
@@ -172,27 +176,45 @@ def _youtube_enabled(svc) -> bool:
     return svc.settings.youtube_enabled and youtube.available()
 
 
+def _annotated_file(svc, analysis_id: int) -> Path | None:
+    folder = Path(svc.settings.video_annotated_dir)
+    return next((p for p in (folder / f"{analysis_id}.webm", folder / f"{analysis_id}.mp4") if p.is_file()), None)
+
+
 @router.post("/{patient_id}/video")
 def video_analyze(
     patient_id: int, request: Request, file: UploadFile | None = File(None), url: str = Form(""), depth: str = Form("detailed"),
+    token: str = Form(""), person: str = Form(""),
     doctor: Doctor = Depends(require_doctor), db: Session = Depends(get_db),
 ):  # fmt: skip
+    """Duas etapas quando há mais de uma pessoa em cena: 1) varre o vídeo e pergunta quem é o paciente;
+    2) (com `token`) termina a análise da pessoa indicada. Com uma pessoa só, faz tudo de uma vez."""
     patient = patient_or_404(db, patient_id)
     svc = request.app.state.services
     if svc.video is None:
         return _error(request, svc.video_error or "Análise de vídeo indisponível.", 503)
+
+    if token.strip():
+        pending = svc.video.pending.pop(token.strip(), patient.id)
+        if pending is None:
+            return _error(request, "Esta escolha expirou. Envie o vídeo novamente.", 410)
+        chosen = int(person) if person.strip().isdigit() else None
+        return _finish_video(request, db, svc, patient, pending.path, pending.scan, pending.source, pending.folder, chosen)
+
     has_file = file is not None and bool(file.filename)
     link = url.strip()
     if not has_file and not link:
         return _error(request, "Envie um arquivo de vídeo ou cole um link do YouTube.", 400)
 
     limit = svc.settings.max_video_mb * 1024 * 1024
-    with tempfile.TemporaryDirectory(prefix="vitaltrace_") as tmp:
+    folder = Path(tempfile.mkdtemp(prefix="vitaltrace_"))
+    keep = False  # a pasta só sobrevive à requisição se ficar aguardando a escolha do paciente
+    try:
         if has_file:  # o arquivo enviado tem prioridade sobre o link
             suffix = Path(file.filename or "").suffix.lower()
             if suffix not in _VIDEO_SUFFIXES:
                 return _error(request, "Formato não suportado. Envie MP4, AVI, MOV, MKV ou WebM.", 415)
-            src = Path(tmp) / f"upload{suffix}"
+            src = folder / f"upload{suffix}"
             size = 0
             with src.open("wb") as out:
                 while chunk := file.file.read(1024 * 1024):
@@ -208,8 +230,9 @@ def video_analyze(
                 return _error(request, "O envio por link do YouTube não está habilitado neste servidor.", 503)
             try:
                 clip = youtube.download_clip(
-                    link, Path(tmp), max_seconds=svc.settings.video_max_seconds, max_mb=svc.settings.max_video_mb
-                )
+                    link, folder, max_seconds=svc.settings.video_max_seconds, max_mb=svc.settings.max_video_mb,
+                    max_height=svc.settings.youtube_max_height,
+                )  # fmt: skip
             except youtube.YouTubeError as exc:
                 return _error(request, str(exc), exc.status)
             src = clip.path
@@ -218,29 +241,61 @@ def video_analyze(
                 "size_mb": clip.size_mb, "clip_seconds": round(clip.seconds),
             }  # fmt: skip
         try:
-            analysis = svc.video.analyze(src, depth)
+            scan = svc.video.scan(src, depth)
+        except VideoError as exc:
+            return _error(request, str(exc), 422)
+        if scan.needs_choice:
+            keep = True
+            new_token = svc.video.pending.put(PendingVideo(src, scan, patient.id, source, folder))
+            return render(
+                request, "_video_choose.html", patient=patient, token=new_token, source=source,
+                candidates=scan.candidate_cards(), duration=round(scan.times[-1] - scan.times[0]),
+            )  # fmt: skip
+        keep = True  # _finish_video apaga a pasta
+        return _finish_video(request, db, svc, patient, src, scan, source, folder, None)
+    finally:
+        if not keep:
+            shutil.rmtree(folder, ignore_errors=True)
+
+
+def _finish_video(request: Request, db: Session, svc, patient, src: Path, scan, source: dict, folder: Path, person: int | None):
+    try:
+        try:
+            analysis = svc.video.finish(src, scan, person, annotated_to=folder / "annotated")
         except VideoError as exc:
             return _error(request, str(exc), 422)
 
-    before = {"level": patient.risk_level, "score": patient.risk_score}
-    analysis.patient_id = str(patient.id)
-    analysis.alerts = build_video_alerts(patient.id, analysis)
-    created = repos.add_alerts(db, analysis.alerts)
-    refs = repos.alert_refs(db, patient.id, analysis.alerts, created)
-    mobility = analysis.metrics.mobility_index
-    summary = f"{len(analysis.events)} evento(s), mobilidade {mobility:.2f}".replace(".", ",") + "." if mobility is not None else f"{len(analysis.events)} evento(s)."
-    payload = analysis.payload()
-    payload["input"] = source
-    payload["alerts"] = refs
-    row = repos.save_analysis(db, patient.id, "video", summary, payload)
-    db.flush()
-    report = analyze_patient(db, patient, save_report=False)
-    row.payload = {**row.payload, "risk": _risk_snapshot(before, report)}
-    db.commit()
+        before = {"level": patient.risk_level, "score": patient.risk_score}
+        analysis.patient_id = str(patient.id)
+        analysis.alerts = build_video_alerts(patient.id, analysis)
+        created = repos.add_alerts(db, analysis.alerts)
+        refs = repos.alert_refs(db, patient.id, analysis.alerts, created)
+        mobility = analysis.metrics.mobility_index
+        summary = f"{len(analysis.events)} evento(s), mobilidade {mobility:.2f}".replace(".", ",") + "." if mobility is not None else f"{len(analysis.events)} evento(s)."
+        payload = analysis.payload()
+        payload["input"] = source
+        payload["alerts"] = refs
+        row = repos.save_analysis(db, patient.id, "video", summary, payload)
+        db.flush()
+        annotated = False
+        if analysis.annotated_path:  # o vídeo com o esqueleto fica em disco, ao lado do banco
+            try:
+                target = Path(svc.settings.video_annotated_dir)
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.move(analysis.annotated_path, target / f"{row.id}{Path(analysis.annotated_path).suffix}")
+                annotated = True
+            except OSError:
+                annotated = False
+        report = analyze_patient(db, patient, save_report=False)
+        row.payload = {**row.payload, "annotated": annotated, "risk": _risk_snapshot(before, report)}
+        db.commit()
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
     previous = [a.payload.get("metrics", {}).get("mobility_index") for a in repos.latest_analyses(db, patient.id, "video")[1:4]]
     response = render(
         request, "_video_result.html", analysis=analysis, patient=patient, new_alerts=created,
         risk=report.risk, type_label=type_label, previous=[p for p in previous if p is not None], source=source,
+        annotated_url=f"/patients/{patient.id}/analyses/{row.id}/annotated" if annotated else None,
     )  # fmt: skip
     response.headers["HX-Trigger"] = "alerts-changed"
     return response
@@ -360,6 +415,20 @@ def analysis_frame(
     return Response(
         base64.b64decode(encoded), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
     )
+
+
+@router.get("/{patient_id}/analyses/{analysis_id}/annotated")
+def analysis_annotated(
+    patient_id: int, analysis_id: int, request: Request,
+    doctor: Doctor = Depends(require_doctor), db: Session = Depends(get_db),
+):  # fmt: skip
+    """Vídeo reduzido com o esqueleto do paciente desenhado (gerado na análise detalhada)."""
+    row = db.get(Analysis, analysis_id)
+    path = _annotated_file(request.app.state.services, analysis_id) if row and row.patient_id == patient_id and row.kind == "video" else None
+    if path is None:
+        raise HTTPException(404, "Vídeo anotado não encontrado.")
+    media = "video/webm" if path.suffix == ".webm" else "video/mp4"
+    return FileResponse(path, media_type=media, headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.post("/{patient_id}/evolution/analyze")

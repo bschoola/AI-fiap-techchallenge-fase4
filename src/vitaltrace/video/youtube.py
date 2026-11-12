@@ -3,7 +3,7 @@
 Cuidados:
 - só aceita endereços do YouTube; a URL entregue ao yt-dlp é montada aqui a partir do ID de 11
   caracteres, então nada que o usuário digitou além do ID chega ao downloader;
-- baixa só os primeiros `max_seconds`, em até 480p e preferindo H.264 (o OpenCV decodifica melhor);
+- baixa só os primeiros `max_seconds`, em até 720p (configurável) e preferindo H.264 (o OpenCV decodifica melhor);
 - o arquivo vive numa pasta temporária e é apagado pelo chamador: o vídeo não é guardado.
 
 O yt-dlp muda com frequência. Se o download falhar do nada: `pip install -U "yt-dlp[default]"`.
@@ -91,7 +91,7 @@ def _friendly(exc: Exception) -> YouTubeError:
     return YouTubeError(f"Não foi possível baixar o vídeo do YouTube. {_UPDATE_HINT}")
 
 
-def download_clip(raw_url: str, dest: Path, *, max_seconds: int, max_mb: int) -> YouTubeClip:
+def download_clip(raw_url: str, dest: Path, *, max_seconds: int, max_mb: int, max_height: int = 720) -> YouTubeClip:
     url = canonical_url(raw_url)
     if not available():
         raise YouTubeError("O download do YouTube não está instalado neste servidor (falta o yt-dlp).", 503)
@@ -100,7 +100,7 @@ def download_clip(raw_url: str, dest: Path, *, max_seconds: int, max_mb: int) ->
 
     options = {
         "format": "bv*[vcodec!^=av01]/b[vcodec!^=av01]/bv*/b",  # só vídeo: o áudio não é usado
-        "format_sort": ["res:480", "vcodec:h264"],
+        "format_sort": [f"res:{max(144, int(max_height))}", "vcodec:h264"],  # a melhor resolução até o limite
         "noplaylist": True,
         "allowed_extractors": ["youtube"],
         "download_ranges": download_range_func(None, [(0, max_seconds)]),

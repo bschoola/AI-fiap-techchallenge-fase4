@@ -1,4 +1,4 @@
-"""Estimadores de pessoa: YOLOv8-pose (preferido) e movimento via OpenCV (fallback leve)."""
+"""Estimadores de pessoa: YOLO-pose (preferido) e movimento via OpenCV (fallback leve)."""
 
 from typing import Any, Protocol
 
@@ -19,50 +19,87 @@ def _to_np(value: Any) -> np.ndarray:
 
 
 class YoloPoseEstimator:
-    """YOLOv8-pose em CPU. Os pesos `yolov8n-pose.pt` (~6 MB) são baixados na primeira execução."""
+    """YOLO-pose em CPU. Os pesos são baixados na primeira execução.
 
-    def __init__(self, weights: str = "yolov8n-pose.pt", conf: float = 0.35, model: Any = None):
+    `estimate_all` devolve TODAS as pessoas do quadro (quem é o paciente é decidido depois, pelo
+    rastreador). `refine` roda a pose de novo só no recorte de uma pessoa, em resolução maior:
+    é o segundo estágio, que melhora o mapeamento das articulações de quem aparece pequeno."""
+
+    def __init__(
+        self,
+        weights: str = "yolo26s-pose.pt",
+        conf: float = 0.35,
+        model: Any = None,
+        imgsz: int = 640,
+        refine_imgsz: int = 480,
+    ):
         if model is None:
             from ultralytics import YOLO  # import tardio: a dependência é opcional
 
             model = YOLO(weights)
         self._model = model
         self._conf = conf
-        self.name = f"YOLOv8-pose ({weights})"
-        self._last_center: tuple[float, float] | None = None
+        self.imgsz = imgsz
+        self.refine_imgsz = refine_imgsz
+        self.name = f"YOLO-pose ({weights})"
 
     def reset(self) -> None:
-        """Novo vídeo ou nova cena: esquece quem estava sendo seguido."""
-        self._last_center = None
+        """Sem estado entre quadros: a identidade das pessoas fica no rastreador."""
 
-    def estimate(self, frame_bgr: np.ndarray, t: float) -> PersonObservation | None:
-        results = self._model.predict(frame_bgr, verbose=False, device="cpu", conf=self._conf, imgsz=480)
+    def _predict(self, image: np.ndarray, imgsz: int, conf: float):
+        results = self._model.predict(image, verbose=False, device="cpu", conf=conf, imgsz=imgsz)
         if not results or results[0].boxes is None or len(results[0].boxes) == 0:
             return None
         res = results[0]
-        boxes = _to_np(res.boxes.xyxy)
-        confs = _to_np(res.boxes.conf)
-        areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
-        score = confs * areas  # a pessoa mais evidente do quadro...
-        if self._last_center is not None:  # ...com preferência por quem já vinha sendo seguido
-            cx, cy = (boxes[:, 0] + boxes[:, 2]) / 2, (boxes[:, 1] + boxes[:, 3]) / 2
-            near = np.hypot(cx - self._last_center[0], cy - self._last_center[1]) < 0.25 * frame_bgr.shape[1]
-            score = score * np.where(near, 2.0, 1.0)
-        best = int(np.argmax(score))
-        self._last_center = (float((boxes[best, 0] + boxes[best, 2]) / 2), float((boxes[best, 1] + boxes[best, 3]) / 2))
-        keypoints = None
-        if getattr(res, "keypoints", None) is not None:
-            data = _to_np(res.keypoints.data)
-            if len(data) > best:
-                keypoints = [(float(x), float(y), float(c)) for x, y, c in data[best]]
+        boxes, confs = _to_np(res.boxes.xyxy), _to_np(res.boxes.conf)
+        keypoints = _to_np(res.keypoints.data) if getattr(res, "keypoints", None) is not None else None
+        return boxes, confs, keypoints
+
+    def estimate_all(self, frame_bgr: np.ndarray, t: float) -> list[PersonObservation]:
+        found = self._predict(frame_bgr, self.imgsz, self._conf)
+        if found is None:
+            return []
+        boxes, confs, keypoints = found
         h, w = frame_bgr.shape[:2]
-        return PersonObservation(
-            t=t,
-            bbox=tuple(float(v) for v in boxes[best]),
-            keypoints=keypoints,
-            frame_size=(w, h),
-            people=int(len(boxes)),
-        )
+        people = []
+        for i in range(len(boxes)):
+            kp = None
+            if keypoints is not None and len(keypoints) > i:
+                kp = [(float(x), float(y), float(c)) for x, y, c in keypoints[i]]
+            people.append(
+                PersonObservation(
+                    t=t,
+                    bbox=tuple(float(v) for v in boxes[i]),
+                    keypoints=kp,
+                    frame_size=(w, h),
+                    people=int(len(boxes)),
+                    conf=float(confs[i]),
+                )
+            )
+        return people
+
+    def estimate(self, frame_bgr: np.ndarray, t: float) -> PersonObservation | None:
+        """A pessoa mais evidente do quadro (maior e mais confiável). Usado sem rastreamento."""
+        people = self.estimate_all(frame_bgr, t)
+        if not people:
+            return None
+        return max(people, key=lambda p: p.conf * (p.bbox[2] - p.bbox[0]) * (p.bbox[3] - p.bbox[1]))
+
+    def refine(self, crop_bgr: np.ndarray) -> tuple[list[tuple[float, float, float]], float] | None:
+        """Pose da pessoa principal de um recorte: (17 pontos nas coordenadas do recorte, confiança)."""
+        found = self._predict(crop_bgr, self.refine_imgsz, min(self._conf, 0.25))
+        if found is None or found[2] is None:
+            return None
+        boxes, confs, keypoints = found
+        h, w = crop_bgr.shape[:2]
+        # o recorte foi centrado no paciente: vale a detecção grande e mais perto do centro
+        cx, cy = (boxes[:, 0] + boxes[:, 2]) / 2, (boxes[:, 1] + boxes[:, 3]) / 2
+        off = np.hypot((cx - w / 2) / w, (cy - h / 2) / h)
+        area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1]) / float(w * h)
+        best = int(np.argmax(confs * area * (1.0 - np.minimum(off, 0.9))))
+        if len(keypoints) <= best:
+            return None
+        return [(float(x), float(y), float(c)) for x, y, c in keypoints[best]], float(confs[best])
 
 
 class MotionBBoxEstimator:

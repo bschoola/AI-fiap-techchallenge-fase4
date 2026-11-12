@@ -6,12 +6,12 @@
   <nav><a class="crumb" href="/patients/{{ patient.id }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>{{ patient.name }}</a></nav>
   <div class="stack" style="gap:6px">
     <h1 style="font-size:30px;font-weight:800;letter-spacing:-.02em">Análise de vídeo</h1>
-    <p class="muted" style="margin:0">Postura, mobilidade, quedas e imobilidade a partir de uma gravação (câmera parada, uma pessoa em cena).</p>
+    <p class="muted" style="margin:0">Postura, amplitude das articulações, repetições, mobilidade e quedas a partir de uma gravação de fisioterapia. Funciona melhor com câmera parada e o corpo inteiro em cena; se houver mais de uma pessoa, você indica quem é o paciente.</p>
   </div>
 
   {% if video_error %}<div class="notice err" role="alert">{{ video_error }}</div>{% else %}
   <div class="notice info">Motor: <b>{{ backend }}</b>, em CPU. Analisa até {{ max_seconds }} s do vídeo.
-    {% if 'OpenCV' in backend %}Para usar pose (esqueleto e ângulos de joelho), instale o YOLOv8: <code>pip install -r requirements-video.txt</code>.{% endif %}</div>
+    {% if 'OpenCV' in backend %}Para usar pose (esqueleto e ângulos das articulações), instale o YOLO: <code>pip install -r requirements-video.txt</code>.{% endif %}</div>
   {% endif %}
 
   <form class="card stack" hx-post="/patients/{{ patient.id }}/video" hx-target="#result" hx-encoding="multipart/form-data" hx-indicator="#busy" hx-disabled-elt="find button">
@@ -23,21 +23,22 @@
       <label for="url">Link do YouTube</label>
       <input id="url" name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false"
              placeholder="https://www.youtube.com/watch?v=…" aria-describedby="url-hint">
-      <p id="url-hint" class="small muted" style="margin:8px 0 0">Baixamos só os primeiros {{ max_seconds }} s, em baixa resolução, e o vídeo não é guardado. Use apenas vídeos públicos, para demonstração. Funciona melhor com câmera parada e uma pessoa em cena.</p>
+      <p id="url-hint" class="small muted" style="margin:8px 0 0">Baixamos só os primeiros {{ max_seconds }} s, em até {{ youtube_height }}p, e o arquivo original é apagado depois da análise. Use apenas vídeos públicos, para demonstração. Vídeos editados (com cortes) são analisados trecho a trecho.</p>
     </div>
     {% endif %}
     <fieldset class="depth">
       <legend>Profundidade da análise</legend>
       <label class="depth-opt"><input type="radio" name="depth" value="detailed" checked>
-        <span><b>Detalhada</b> <span class="muted small">(recomendada) · 5 quadros/s, procura anomalias no próprio vídeo: tronco, ombros/quadril, equilíbrio, amplitude, ritmo e fadiga. Mais lenta em CPU.</span></span></label>
+        <span><b>Detalhada</b> <span class="muted small">(recomendada) · {{ detail_fps | round(0) | int }} quadros/s, pose refeita no recorte do paciente em resolução original; descreve o que foi visto e procura anomalias no próprio vídeo: tronco, ombros/quadril, equilíbrio, amplitude de joelho, quadril, ombro e cotovelo, ritmo e fadiga. Leva alguns minutos em CPU.</span></span></label>
       <label class="depth-opt"><input type="radio" name="depth" value="fast">
-        <span><b>Rápida</b> <span class="muted small">· 2 quadros/s, só queda, imobilidade, mobilidade e simetria dos joelhos.</span></span></label>
+        <span><b>Rápida</b> <span class="muted small">· {{ fast_fps | round(0) | int }} quadros/s, só queda, imobilidade, mobilidade e simetria dos joelhos.</span></span></label>
     </fieldset>
     <div class="row">
       <button class="btn primary" type="submit" {{ 'disabled' if video_error }}>Analisar vídeo</button>
-      <span id="busy" class="htmx-indicator row small muted" style="gap:8px" role="status"><span class="spinner"></span>Baixando (se for link) e analisando quadros… pode levar até um minuto em CPU.</span>
+      <span id="busy" class="htmx-indicator row small muted" style="gap:8px" role="status"><span class="spinner"></span>Baixando (se for link) e analisando quadros… a análise detalhada de um vídeo de 2 minutos pode levar alguns minutos em CPU.</span>
     </div>
   </form>
+  {% if keeps_video %}<p class="small muted" style="margin:0">Na análise detalhada fica guardada, junto do resultado, uma versão reduzida do vídeo com o esqueleto desenhado (desligue com <code>VIDEO_ANNOTATED=false</code>). O arquivo original nunca é guardado.</p>{% endif %}
   <div id="result" aria-live="polite"></div>
 </main>
 <script src="/static/js/dropzone.js" defer></script>

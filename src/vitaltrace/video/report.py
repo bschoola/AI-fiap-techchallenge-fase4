@@ -16,6 +16,7 @@ _TYPE_LABELS = {
     "rom_asymmetry": "Assimetria de amplitude",
     "rep_irregular": "Ritmo irregular das repetições",
     "rep_fatigue": "Queda de amplitude (fadiga)",
+    "low_pose_quality": "Pose pouco confiável",
 }
 _POSTURES = {"standing": "em pé", "sitting": "sentado", "lying": "deitado", "upright": "na vertical"}
 
@@ -24,18 +25,54 @@ def type_label(event_type: str) -> str:
     return _TYPE_LABELS.get(event_type, event_type)
 
 
-def build_report(metrics: VideoMetrics, events: list[VideoEvent], backend: str, quality=None, joints=None) -> str:
+_CHOICE = {"manual": "indicada pelo médico", "auto": "escolhida automaticamente", "single": "única em cena"}
+
+
+def people_line(people: dict | None) -> str | None:
+    if not people or not people.get("max"):
+        return None
+    if people["max"] <= 1:
+        return "Pessoas em cena: 1 (o paciente)."
+    line = f"Pessoas em cena: até {people['max']} ao mesmo tempo"
+    if people.get("analyzed") is not None:
+        line += f"; analisada a pessoa nº {people['analyzed']} ({_CHOICE.get(people.get('choice'), 'escolhida automaticamente')})"
+    return line + ". As demais foram ignoradas nas medidas."
+
+
+def build_report(
+    metrics: VideoMetrics,
+    events: list[VideoEvent],
+    backend: str,
+    quality=None,
+    joints=None,
+    people: dict | None = None,
+    scene: list[dict] | None = None,
+    ranges: dict[str, dict] | None = None,
+    narrative: str = "",
+) -> str:
     lines = [
         f"Vídeo de {metrics.duration_s:.0f} s analisado com {backend}: "
-        f"{metrics.frames_analyzed} quadros amostrados, pessoa visível em "
+        f"{metrics.frames_analyzed} quadros amostrados, paciente visível em "
         f"{metrics.person_detected_ratio:.0%} deles."
     ]
+    who = people_line(people)
+    if who:
+        lines.append(who)
+    if scene:
+        lines.append("O que foi visto:")
+        for s in scene:
+            lines.append(f"• {s['t_start']:.0f}–{s['t_end']:.0f} s: {s['text']}")
+    if narrative:
+        lines.append(f"Descrição da cena (modelo multimodal, não usada nas medidas): {narrative}")
     if metrics.posture_seconds:
         parts = [f"{_POSTURES.get(k, k)} {v:.0f} s" for k, v in metrics.posture_seconds.items()]
         lines.append("Posturas: " + ", ".join(parts) + ".")
     if metrics.mobility_index is not None:
         lines.append(f"Índice de mobilidade: {metrics.mobility_index:.2f} (0 = parado, 1 = muito ativo).")
-    if joints:
+    if ranges:
+        parts = [f"{k} {v['min']}°–{v['max']}° (amplitude {v['rom']}°)" for k, v in ranges.items()]
+        lines.append("Ângulos medidos (2D): " + "; ".join(parts) + ".")
+    elif joints:
         lines.append("Amplitude de movimento: " + ", ".join(f"{k} {v}°" for k, v in joints.items()) + ".")
     if quality is not None:
         if quality.depth == "detailed":

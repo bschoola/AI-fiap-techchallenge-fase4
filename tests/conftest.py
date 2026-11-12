@@ -36,6 +36,7 @@ def settings(tmp_path, seeded_file) -> Settings:
         mock_azure=True,
         database_url=f"sqlite:///{copy}",
         video_backend="motion",
+        video_annotated_dir=str(tmp_path / "video_annotated"),
         seed_on_startup=False,
     )
 

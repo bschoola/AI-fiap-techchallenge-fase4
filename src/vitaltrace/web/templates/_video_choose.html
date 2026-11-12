@@ -1,0 +1,24 @@
+{# Mais de uma pessoa em cena: o médico indica quem é o paciente antes de medir qualquer coisa. #}
+<section class="card stack" style="gap:14px">
+  <div class="stack" style="gap:6px">
+    <h2 style="font-size:18px;font-weight:800">Quem é o paciente?</h2>
+    <p class="muted" style="margin:0">Encontramos {{ candidates | length }} pessoas em cena ao mesmo tempo{% if source.get('type') == 'youtube' %} em <b>{{ source.title }}</b>{% elif source.get('filename') %} em <b>{{ source.filename }}</b>{% endif %}. As medidas (ângulos, repetições, postura) são feitas em <b>uma pessoa só</b>, acompanhada do início ao fim. Nada foi salvo ainda.</p>
+  </div>
+  <form class="stack" style="gap:14px" hx-post="/patients/{{ patient.id }}/video" hx-target="#result" hx-indicator="#busy-choose" hx-disabled-elt="find button">
+    <input type="hidden" name="token" value="{{ token }}">
+    <div class="people">
+      {% for c in candidates %}
+      <figure class="person">
+        {% if c.image %}<img src="{{ c.image }}" alt="Pessoa número {{ c.id }} recortada do vídeo">{% endif %}
+        <figcaption class="small">
+          <b>Pessoa nº {{ c.id }}</b>{% if c.suggested %} <span class="badge low">sugerida</span>{% endif %}<br>
+          <span class="muted">em cena de {{ c.first_t | round(0) | int }} a {{ c.last_t | round(0) | int }} s · {{ (c.share * 100) | round(0) | int }}% do trecho{% if c.activity >= 0.3 %} · é quem mais se movimenta{% endif %}</span>
+        </figcaption>
+        <button class="btn {{ 'primary' if c.suggested }}" type="submit" name="person" value="{{ c.id }}">Analisar esta pessoa</button>
+      </figure>
+      {% endfor %}
+    </div>
+    <span id="busy-choose" class="htmx-indicator row small muted" style="gap:8px" role="status"><span class="spinner"></span>Refinando a pose do paciente e medindo… pode levar alguns minutos em CPU.</span>
+  </form>
+  <p class="small muted" style="margin:0">A sugestão é de quem fica mais tempo em cena, maior no quadro e se movimentando mais. A escolha vale por 20 minutos; depois é preciso enviar o vídeo de novo.</p>
+</section>

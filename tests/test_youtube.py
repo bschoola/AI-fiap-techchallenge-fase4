@@ -104,7 +104,7 @@ def test_download_clip_uses_safe_options_and_returns_the_clip(fake_ydl, tmp_path
     assert used.url == CANON  # só o ID chegou ao yt-dlp; o resto do que foi digitado foi descartado
     assert used.options["noplaylist"] is True and used.options["allowed_extractors"] == ["youtube"]
     assert "download_ranges" in used.options and used.options["max_filesize"] == 200 * 1024 * 1024
-    assert "res:480" in used.options["format_sort"]
+    assert "res:720" in used.options["format_sort"]
 
 
 def test_live_streams_are_rejected(fake_ydl, tmp_path):
